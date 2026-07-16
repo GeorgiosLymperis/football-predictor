@@ -1,0 +1,9 @@
+model_name: poisson_serie_a
+version: '1'
+run_id: 26d3eee5757542d198682bcc30cc610e
+rps: 0.20196564162372624
+baseline_rps: 0.23196289470543524
+market_rps: 0.19010013143351226
+market_n_matches: 760
+promoted_at: '2026-07-16T00:55:51.155203+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

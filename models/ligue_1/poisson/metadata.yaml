@@ -1,0 +1,9 @@
+model_name: poisson_ligue_1
+version: '1'
+run_id: 18294cede220447e85138cfd27d5b57d
+rps: 0.21434148546580864
+baseline_rps: 0.23221949020221969
+market_rps: 0.20107727537390863
+market_n_matches: 612
+promoted_at: '2026-07-16T01:04:16.523308+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

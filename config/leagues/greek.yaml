@@ -1,0 +1,40 @@
+league_name: greek
+raw_dir: GREEK
+file_prefix: GREEK
+
+name_fixes:
+  OFI: "OFI Crete"
+
+teams:
+  - AEK
+  - Apollon
+  - Aris
+  - Asteras Tripolis
+  - "Athens Kallithea"
+  - Atromitos
+  - "Doxa Dramas"
+  - Ergotelis
+  - Giannina
+  - Ionikos
+  - Iraklis
+  - Kallonis
+  - Kavala
+  - Kerkyra
+  - Kifisia
+  - Lamia
+  - Larisa
+  - Levadeiakos
+  - "Niki Volos"
+  - "OFI Crete"
+  - Olympiakos
+  - "Olympiakos Volou"
+  - PAOK
+  - Panathinaikos
+  - Panetolikos
+  - Panionios
+  - Panserraikos
+  - Panthrakikos
+  - Platanias
+  - Veria
+  - "Volos NFC"
+  - Xanthi

@@ -1,0 +1,11 @@
+model_name: ensemble_la_liga
+version: '-'
+constituents:
+- poisson_la_liga
+- elo_xgb_la_liga
+- logistic_la_liga
+rps: 0.19883864879926616
+baseline_rps: 0.22591921164125853
+market_rps: 0.19279852326110275
+market_n_matches: 760
+promoted_at: '2026-07-16T00:48:11.637880+00:00'

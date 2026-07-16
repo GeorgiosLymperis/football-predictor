@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "football-predictor"
+version = "2026.0"
+description = "Match prediction models for football leagues"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyyaml",
+    "scipy",
+]
+authors = [
+    {name = "Georgios Lymperis", email = "giorgoslymperis@outlook.com"}
+]
+license = "MIT"
+keywords = ["football", "elo", "streamlit"]
+classifiers = ["Programming Language :: Python"]
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]

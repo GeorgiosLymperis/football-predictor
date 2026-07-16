@@ -1,0 +1,44 @@
+league_name: ligue_1
+raw_dir: LE-CHAMPIONNAT
+file_prefix: LE-CHAMPIONNAT
+
+name_fixes: {}
+
+teams:
+  - Ajaccio
+  - "Ajaccio GFCO"
+  - Amiens
+  - Angers
+  - Arles
+  - Auxerre
+  - Bastia
+  - Bordeaux
+  - Brest
+  - Caen
+  - Clermont
+  - Dijon
+  - "Evian Thonon Gaillard"
+  - Guingamp
+  - "Le Havre"
+  - Lens
+  - Lille
+  - Lorient
+  - Lyon
+  - Marseille
+  - Metz
+  - Monaco
+  - Montpellier
+  - Nancy
+  - Nantes
+  - Nice
+  - Nimes
+  - "Paris FC"
+  - "Paris SG"
+  - Reims
+  - Rennes
+  - Sochaux
+  - "St Etienne"
+  - Strasbourg
+  - Toulouse
+  - Troyes
+  - Valenciennes

@@ -1,0 +1,9 @@
+model_name: xgb_premier_league
+version: '1'
+run_id: 1afc8f17a48141118193f3943e6b7575
+rps: 0.20998303533243434
+baseline_rps: 0.23169153929746178
+market_rps: 0.20133231245714045
+market_n_matches: 760
+promoted_at: '2026-07-16T00:35:32.767193+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

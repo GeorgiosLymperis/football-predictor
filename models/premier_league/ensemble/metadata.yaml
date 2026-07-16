@@ -1,0 +1,11 @@
+model_name: ensemble_premier_league
+version: '-'
+constituents:
+- poisson_premier_league
+- elo_xgb_premier_league
+- logistic_premier_league
+rps: 0.20726227879734901
+baseline_rps: 0.23171236118177646
+market_rps: 0.20133231245714045
+market_n_matches: 760
+promoted_at: '2026-07-16T00:39:35.418344+00:00'

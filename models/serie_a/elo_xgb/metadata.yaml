@@ -1,0 +1,9 @@
+model_name: xgb_serie_a
+version: '1'
+run_id: 09d34e4bc67549fd978e202de349607b
+rps: 0.1975923144784762
+baseline_rps: 0.23190511537241096
+market_rps: 0.19010013143351226
+market_n_matches: 760
+promoted_at: '2026-07-16T00:59:39.708679+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

@@ -1,0 +1,42 @@
+league_name: la_liga
+raw_dir: LA-LIGA
+file_prefix: LA-LIGA
+
+name_fixes: {}
+
+teams:
+  - Alaves
+  - Almeria
+  - Ath Bilbao
+  - Ath Madrid
+  - Barcelona
+  - Betis
+  - Cadiz
+  - Celta
+  - Cordoba
+  - Eibar
+  - Elche
+  - Espanol
+  - Getafe
+  - Girona
+  - Granada
+  - Hercules
+  - Huesca
+  - "La Coruna"
+  - "Las Palmas"
+  - Leganes
+  - Levante
+  - Malaga
+  - Mallorca
+  - Osasuna
+  - Oviedo
+  - Real Madrid
+  - Santander
+  - Sevilla
+  - Sociedad
+  - "Sp Gijon"
+  - Valencia
+  - Valladolid
+  - Vallecano
+  - Villarreal
+  - Zaragoza

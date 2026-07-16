@@ -1,0 +1,16 @@
+*.csv
+*.png
+*.json
+*.nc
+__pycache__
+
+data/
+
+mlflow.db
+mlruns/
+mlartifacts/
+mlruns_tmp/
+
+predictions.db
+
+*.egg-info/

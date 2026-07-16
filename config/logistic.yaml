@@ -1,0 +1,15 @@
+model_name: logistic
+
+logistic_params:
+  C: 1.0
+  max_iter: 1000
+
+feature_variants:
+  - base
+  - base+form
+  - base+h2h
+  - base+form+h2h
+  - base+momentum
+  - base+form+momentum
+  - base+shots
+  - base+form+shots

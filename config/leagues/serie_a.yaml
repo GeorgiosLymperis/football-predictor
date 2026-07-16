@@ -1,0 +1,49 @@
+league_name: serie_a
+raw_dir: SERIE-A
+file_prefix: SERIE-A
+
+name_fixes: {}
+
+teams:
+  - Atalanta
+  - Bari
+  - Benevento
+  - Bologna
+  - Brescia
+  - Cagliari
+  - Carpi
+  - Catania
+  - Cesena
+  - Chievo
+  - Como
+  - Cremonese
+  - Crotone
+  - Empoli
+  - Fiorentina
+  - Frosinone
+  - Genoa
+  - Inter
+  - Juventus
+  - Lazio
+  - Lecce
+  - Livorno
+  - Milan
+  - Monza
+  - Napoli
+  - Novara
+  - Padova
+  - Palermo
+  - Parma
+  - Pescara
+  - Pisa
+  - Roma
+  - Salernitana
+  - Sampdoria
+  - Sassuolo
+  - Siena
+  - Spal
+  - Spezia
+  - Torino
+  - Udinese
+  - Venezia
+  - Verona

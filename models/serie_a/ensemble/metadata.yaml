@@ -1,0 +1,11 @@
+model_name: ensemble_serie_a
+version: '-'
+constituents:
+- poisson_serie_a
+- elo_xgb_serie_a
+- logistic_serie_a
+rps: 0.19560517169988045
+baseline_rps: 0.23196289470543524
+market_rps: 0.19010013143351226
+market_n_matches: 760
+promoted_at: '2026-07-16T01:03:28.354752+00:00'

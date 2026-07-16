@@ -1,0 +1,13 @@
+selection_seasons:
+  - "2022-2023"
+  - "2023-2024"
+
+holdout_seasons:
+  - "2024-2025"
+  - "2025-2026"
+
+xgb_step_matchdays: 10
+
+promotion_margin: 0.0
+
+poisson_step_matchdays: 999

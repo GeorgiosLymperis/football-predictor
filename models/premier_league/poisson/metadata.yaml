@@ -1,0 +1,9 @@
+model_name: poisson_premier_league
+version: '1'
+run_id: eb57657c42d84c7a93aaa8dc590b41ae
+rps: 0.2126303718172802
+baseline_rps: 0.23171236118177646
+market_rps: 0.20133231245714045
+market_n_matches: 760
+promoted_at: '2026-07-16T00:04:55.298083+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

@@ -1,0 +1,22 @@
+model_name: poisson
+
+train_seasons:
+  - "2024-2025"
+  - "2025-2026"
+
+dixon_coles: true
+decay_rate: 0.0
+
+sampling:
+  draws: 1500
+  tune: 2000
+  chains: 4
+  target_accept: 0.9
+  seed: 42
+
+backtest_sampling:
+  draws: 800
+  tune: 1000
+  chains: 4
+  target_accept: 0.9
+  seed: 42

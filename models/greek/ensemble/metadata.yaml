@@ -1,0 +1,11 @@
+model_name: ensemble_greek
+version: '-'
+constituents:
+- poisson_greek
+- elo_xgb_greek
+- logistic_greek
+rps: 0.19580520633035986
+baseline_rps: 0.23659882685340788
+market_rps: 0.19394748799758
+market_n_matches: 469
+promoted_at: '2026-07-16T00:33:31.034107+00:00'

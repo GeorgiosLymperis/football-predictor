@@ -1,0 +1,49 @@
+league_name: premier_league
+raw_dir: "PREMIER LEAGUE"
+file_prefix: PL
+
+name_fixes: {}
+
+teams:
+  - Arsenal
+  - Aston Villa
+  - Birmingham
+  - Blackburn
+  - Blackpool
+  - Bolton
+  - Bournemouth
+  - Brentford
+  - Brighton
+  - Burnley
+  - Cardiff
+  - Chelsea
+  - Crystal Palace
+  - Everton
+  - Fulham
+  - Huddersfield
+  - Hull
+  - Ipswich
+  - Leeds
+  - Leicester
+  - Liverpool
+  - Luton
+  - Man City
+  - Man United
+  - Middlesbrough
+  - Newcastle
+  - Norwich
+  - "Nott'm Forest"
+  - QPR
+  - Reading
+  - Sheffield United
+  - Southampton
+  - Stoke
+  - Sunderland
+  - Swansea
+  - Tottenham
+  - Watford
+  - West Brom
+  - West Ham
+  - Wigan
+  - Wimbledon
+  - Wolves

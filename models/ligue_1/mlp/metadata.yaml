@@ -1,0 +1,9 @@
+model_name: mlp_ligue_1
+version: '1'
+run_id: e031f77121c2478bbc532cf7d7406cdf
+rps: 0.20561471512690482
+baseline_rps: 0.23221839713357453
+market_rps: 0.20107727537390863
+market_n_matches: 612
+promoted_at: '2026-07-16T01:10:55.750692+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

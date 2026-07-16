@@ -1,0 +1,71 @@
+name: retrain-monthly
+
+on:
+  schedule:
+    # 06:00 UTC on the 1st of every month.
+    - cron: '0 6 1 * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Refresh match data from football-data.co.uk
+        run: python scripts/update_data.py
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      - name: Retrain every league
+        run: |
+          status=0
+          for league in greek premier_league la_liga bundesliga serie_a ligue_1; do
+            echo "##### $league #####"
+            for script in train_poisson.py train_xgb.py train_logistic.py train_mlp.py; do
+              python scripts/"$script" --league "$league" || status=1
+            done
+            python scripts/train_ensemle.py --league "$league" || status=1
+          done
+          echo "retrain_status=$status" >> "$GITHUB_ENV"
+
+      # Runs even if a specific league above failed, so the leagues that
+      # did retrain successfully still land in git instead of being thrown
+      # away because one of the other five had a hiccup.
+      - name: Commit and push updated data and models
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ models/
+          if git diff --cached --quiet; then
+            echo "No data or model changes to commit."
+          else
+            git commit -m "Scheduled monthly retrain: $(date -u +%Y-%m-%d)"
+            git pull --rebase
+            git push
+          fi
+
+      - name: Fail the run if any league failed to retrain
+        if: always()
+        run: |
+          if [ "${retrain_status:-0}" != "0" ]; then
+            echo "One or more leagues failed to retrain; see the 'Retrain every league' step above." >&2
+            exit 1
+          fi

@@ -1,0 +1,9 @@
+model_name: xgb_ligue_1
+version: '1'
+run_id: bdd1eff2306441ab812ae91a211071af
+rps: 0.21347860682046704
+baseline_rps: 0.23221839713357453
+market_rps: 0.20107727537390863
+market_n_matches: 612
+promoted_at: '2026-07-16T01:07:41.512331+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

@@ -1,0 +1,11 @@
+model_name: ensemble_bundesliga
+version: '-'
+constituents:
+- poisson_bundesliga
+- elo_xgb_bundesliga
+- logistic_bundesliga
+rps: 0.20168451370432092
+baseline_rps: 0.23468275939036956
+market_rps: 0.19634765566157153
+market_n_matches: 612
+promoted_at: '2026-07-16T00:55:02.907618+00:00'

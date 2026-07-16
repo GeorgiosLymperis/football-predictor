@@ -1,0 +1,9 @@
+model_name: mlp_bundesliga
+version: '1'
+run_id: 5e7f76c0b8674d8197ff5697d14a20fb
+rps: 0.20594681676475793
+baseline_rps: 0.23461119826215615
+market_rps: 0.19634765566157153
+market_n_matches: 612
+promoted_at: '2026-07-16T00:54:33.203777+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

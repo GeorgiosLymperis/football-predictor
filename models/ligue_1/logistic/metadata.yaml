@@ -1,0 +1,9 @@
+model_name: logistic_ligue_1
+version: '1'
+run_id: f4e1c74faf364b00a610268eebb78f12
+rps: 0.2060871345291415
+baseline_rps: 0.23221839713357453
+market_rps: 0.20107727537390863
+market_n_matches: 612
+promoted_at: '2026-07-16T01:09:07.838778+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d

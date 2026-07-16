@@ -1,0 +1,20 @@
+model_name: mlp
+
+mlp_params:
+  hidden_layer_sizes: [12]
+  activation: relu
+  alpha: 0.01
+  early_stopping: true
+  validation_fraction: 0.15
+  max_iter: 500
+  random_state: 42
+
+feature_variants:
+  - base
+  - base+form
+  - base+h2h
+  - base+form+h2h
+  - base+momentum
+  - base+form+momentum
+  - base+shots
+  - base+form+shots

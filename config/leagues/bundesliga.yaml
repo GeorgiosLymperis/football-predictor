@@ -1,0 +1,39 @@
+league_name: bundesliga
+raw_dir: BUNDESLIGA
+file_prefix: BUNDESLIGA
+
+name_fixes: {}
+
+teams:
+  - Augsburg
+  - Bayern Munich
+  - Bielefeld
+  - Bochum
+  - Braunschweig
+  - Darmstadt
+  - Dortmund
+  - "Ein Frankfurt"
+  - "FC Koln"
+  - "Fortuna Dusseldorf"
+  - Freiburg
+  - "Greuther Furth"
+  - Hamburg
+  - Hannover
+  - Heidenheim
+  - Hertha
+  - Hoffenheim
+  - "Holstein Kiel"
+  - Ingolstadt
+  - Kaiserslautern
+  - Leverkusen
+  - "M'gladbach"
+  - Mainz
+  - Nurnberg
+  - Paderborn
+  - "RB Leipzig"
+  - "Schalke 04"
+  - "St Pauli"
+  - Stuttgart
+  - "Union Berlin"
+  - "Werder Bremen"
+  - Wolfsburg

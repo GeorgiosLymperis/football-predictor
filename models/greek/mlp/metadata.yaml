@@ -1,0 +1,9 @@
+model_name: mlp_greek
+version: '1'
+run_id: 92f956a64a2f430c87e4ba4e442ca862
+rps: 0.20484328535291296
+baseline_rps: 0.23637938033460965
+market_rps: 0.19394748799758
+market_n_matches: 469
+promoted_at: '2026-07-16T00:04:01.387616+00:00'
+git_sha: 41588ee30500b2356e1e14555b246f00f1ae130d
