@@ -23,3 +23,6 @@ readme = "README.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
