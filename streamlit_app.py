@@ -4,7 +4,7 @@ from app_common import LEAGUE_DISPLAY_NAMES, LEAGUE_ICONS, render_league_page
 
 
 def render_home() -> None:
-    st.title('Super League match predictor')
+    st.title('Football match predictor')
     st.write(
         'Pick a league from the sidebar. Each page shows that league\'s current '
         'Elo ratings, then lets you pick a matchup and compares several independently '
@@ -26,7 +26,7 @@ def render_home() -> None:
     )
 
 
-st.set_page_config(page_title='Super League Predictor', page_icon='⚽', layout='centered')
+st.set_page_config(page_title='Football Match Predictor', page_icon='⚽', layout='centered')
 
 pages = [st.Page(render_home, title='Home', icon='⚽', default=True)]
 for league, display_name in LEAGUE_DISPLAY_NAMES.items():
