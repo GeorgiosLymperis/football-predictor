@@ -4,7 +4,7 @@
 *.nc
 __pycache__
 
-data/
+!data/**/*.csv
 
 mlflow.db
 mlruns/
