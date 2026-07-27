@@ -4,6 +4,7 @@ Match outcome prediction for six European football leagues (Greek Super League, 
 
 Historical results, match statistics, and odds come from [football-data.co.uk](https://www.football-data.co.uk/), stored as one CSV per season under `data/`. `scripts/update_data.py` keeps the current season's file up to date from the same source; see [Keeping data and models fresh](#keeping-data-and-models-fresh).
 
+Live app: [https://ml-football-predictor.streamlit.app/](https://ml-football-predictor.streamlit.app/)
 ## What it does
 
 For a chosen home/away matchup, the app shows:
