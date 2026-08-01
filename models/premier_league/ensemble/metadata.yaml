@@ -4,8 +4,8 @@ constituents:
 - poisson_premier_league
 - elo_xgb_premier_league
 - logistic_premier_league
-rps: 0.20726227879734901
+rps: 0.20730814904946165
 baseline_rps: 0.23171236118177646
 market_rps: 0.20133231245714045
 market_n_matches: 760
-promoted_at: '2026-07-16T00:39:35.418344+00:00'
+promoted_at: '2026-08-01T08:15:58.831773+00:00'

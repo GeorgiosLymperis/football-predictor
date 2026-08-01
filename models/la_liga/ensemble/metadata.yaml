@@ -4,8 +4,8 @@ constituents:
 - poisson_la_liga
 - elo_xgb_la_liga
 - logistic_la_liga
-rps: 0.19883864879926616
+rps: 0.19884150934438571
 baseline_rps: 0.22591921164125853
 market_rps: 0.19279852326110275
 market_n_matches: 760
-promoted_at: '2026-07-16T00:48:11.637880+00:00'
+promoted_at: '2026-08-01T08:26:11.766487+00:00'
