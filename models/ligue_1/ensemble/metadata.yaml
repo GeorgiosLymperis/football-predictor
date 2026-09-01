@@ -4,8 +4,8 @@ constituents:
 - poisson_ligue_1
 - elo_xgb_ligue_1
 - logistic_ligue_1
-rps: 0.20865430637669397
+rps: 0.2086449924191836
 baseline_rps: 0.23221949020221969
 market_rps: 0.20107727537390863
 market_n_matches: 612
-promoted_at: '2026-08-01T08:53:38.169610+00:00'
+promoted_at: '2026-09-01T11:10:13.613221+00:00'
