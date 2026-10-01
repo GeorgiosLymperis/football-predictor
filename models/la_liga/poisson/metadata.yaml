@@ -1,9 +1,9 @@
 model_name: poisson_la_liga
 version: '1'
-run_id: 0ed1e63b7c2c4870b2e18fffecfba76c
+run_id: ed8ad4a60cb64ede9da06af6a1766837
 rps: 0.20235804393201173
 baseline_rps: 0.22591921164125853
 market_rps: 0.19279852326110275
 market_n_matches: 760
-promoted_at: '2026-09-01T10:49:45.793160+00:00'
-git_sha: f69fd72b292a63c607463390278a80fb1eca9186
+promoted_at: '2026-10-01T12:09:07.491614+00:00'
+git_sha: 92565e09afa5ffb8b150d39005b85a70194c06d5

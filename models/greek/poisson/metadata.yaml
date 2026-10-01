@@ -1,9 +1,9 @@
 model_name: poisson_greek
 version: '1'
-run_id: f4fdc9f7671447aa95f8fc14f72f8de9
+run_id: 5928de22f261417685295f18b9167bd5
 rps: 0.19923141563804345
 baseline_rps: 0.23659882685340788
 market_rps: 0.19394748799758
 market_n_matches: 469
-promoted_at: '2026-09-01T10:40:08.037517+00:00'
-git_sha: f69fd72b292a63c607463390278a80fb1eca9186
+promoted_at: '2026-10-01T11:58:10.540961+00:00'
+git_sha: 92565e09afa5ffb8b150d39005b85a70194c06d5
