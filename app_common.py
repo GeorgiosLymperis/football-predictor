@@ -4,15 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
-import xgboost as xgb
-import yaml
 from matplotlib.colors import LinearSegmentedColormap
 
-from match_predict.mlops.monitoring import log_prediction
-from match_predict.predict.xgb import build_feature_row
-from match_predict.predict.logistic import predict_outcome_probs as logistic_predict
-from match_predict.predict.mlp import predict_outcome_probs as mlp_predict
-from match_predict.predict.poisson import predict_outcome_probs
+from match_predict.service import best_outcome_model, load_league, log_prediction_safe, predict_match
 
 LEAGUE_DISPLAY_NAMES = {
     'greek': 'Greek Super League',
@@ -41,65 +35,6 @@ DEFAULT_MATCHUPS = {
 
 SEQ_BLUES = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b']
 CATEGORICAL = ['#2a78d6', "#42cc9c", '#eda100', "#005E00", '#4a3aa7']
-
-
-def _model_dir(league: str, model_name: str) -> Path:
-    return Path(f'models/{league}/{model_name}')
-
-
-@st.cache_resource
-def load_poisson(league: str) -> dict:
-    d = np.load(_model_dir(league, 'poisson') / 'posterior_params.npz', allow_pickle=True)
-    return {k: d[k] for k in d.files}
-
-
-@st.cache_resource
-def load_elo_xgb(league: str):
-    model_dir = _model_dir(league, 'elo_xgb')
-    booster = xgb.Booster()
-    booster.load_model(str(model_dir / 'xgb_model.ubj'))
-    d = np.load(model_dir / 'team_state.npz', allow_pickle=True)
-    return booster, {k: d[k] for k in d.files}
-
-
-@st.cache_resource
-def load_negbinom(league: str) -> dict | None:
-    path = _model_dir(league, 'negbinom') / 'posterior_params.npz'
-    if not path.exists():
-        return None
-    d = np.load(path, allow_pickle=True)
-    return {k: d[k] for k in d.files}
-
-
-@st.cache_resource
-def load_logistic(league: str):
-    """(None, None) if this league hasn't had logistic trained yet."""
-    model_dir = _model_dir(league, 'logistic')
-    params_path = model_dir / 'logistic_params.npz'
-    state_path = model_dir / 'team_state.npz'
-    if not params_path.exists():
-        return None, None
-    d1 = np.load(params_path, allow_pickle=True)
-    d2 = np.load(state_path, allow_pickle=True)
-    return {k: d1[k] for k in d1.files}, {k: d2[k] for k in d2.files}
-
-
-@st.cache_resource
-def load_mlp(league: str):
-    """(None, None) if this league hasn't had mlp trained yet."""
-    model_dir = _model_dir(league, 'mlp')
-    params_path = model_dir / 'mlp_params.npz'
-    state_path = model_dir / 'team_state.npz'
-    if not params_path.exists():
-        return None, None
-    d1 = np.load(params_path, allow_pickle=True)
-    d2 = np.load(state_path, allow_pickle=True)
-    return {k: d1[k] for k in d1.files}, {k: d2[k] for k in d2.files}
-
-
-def load_metadata(league: str, model_name: str) -> dict | None:
-    path = _model_dir(league, model_name) / 'metadata.yaml'
-    return yaml.safe_load(path.read_text()) if path.exists() else None
 
 
 def metadata_caption(meta: dict | None, extra: str) -> str:
@@ -221,20 +156,26 @@ def _elo_progress_chart(state: dict, teams: list[str]):
     return fig
 
 
-def log_prediction_safe(model_name: str, meta: dict | None, home: str, away: str,
-                         p_home: float, p_draw: float, p_away: float) -> None:
-    """A monitoring-log failure must never break a prediction request."""
-    try:
-        log_prediction(model_name, meta['version'] if meta else None, home, away, p_home, p_draw, p_away)
-    except Exception:
-        pass
+GOALS_MODEL_INFO = {
+    'negbinom': (
+        'Negative Binomial',
+        'Same hierarchical attack/defence structure as the Poisson model, but '
+        'relaxes its mean=variance assumption with an extra dispersion parameter. '
+        'Beat Poisson on walk-forward RPS for this league.',
+    ),
+    'poisson': (
+        'Bayesian Poisson (Dixon-Coles)',
+        'Hierarchical Bayesian Poisson regression with Dixon-Coles low-score correction.',
+    ),
+}
 
 
-def _render_goals_model_section(title: str, caption_text: str, model_name: str,
-                                 params: dict, meta: dict | None, home: str, away: str) -> dict:
-
+def _render_goals_model_section(goals_model: str, result: dict, meta: dict | None,
+                                 has_negbinom: bool, home: str, away: str) -> None:
+    title, caption_text = GOALS_MODEL_INFO[goals_model]
+    if goals_model == 'poisson' and has_negbinom:
+        caption_text += ' Beat Negative Binomial on walk-forward RPS for this league.'
     st.subheader(title)
-    result = predict_outcome_probs(params, home, away)
     outcome_row(result['p_home'], result['p_draw'], result['p_away'], home, away)
     c1, c2 = st.columns(2)
     c1.metric(f'Expected goals, {home}', f'{result["xg_home"]:.2f}')
@@ -244,26 +185,6 @@ def _render_goals_model_section(title: str, caption_text: str, model_name: str,
     st.markdown('Scoreline probabilities')
     st.pyplot(score_heatmap(result['score_matrix'], home, away))
     st.caption(metadata_caption(meta, caption_text))
-    log_prediction_safe(model_name, meta, home, away,
-                         result['p_home'], result['p_draw'], result['p_away'])
-    return result
-
-
-def _best_goals_model(league: str, poisson_params: dict, negbinom_params: dict | None,
-                       poisson_meta: dict | None, negbinom_meta: dict | None):
-
-    if negbinom_params is not None and negbinom_meta['rps'] < poisson_meta['rps']:
-        return (
-            f'negbinom_{league}', negbinom_params, negbinom_meta, 'Negative Binomial',
-            'Same hierarchical attack/defence structure as the Poisson model, but '
-            'relaxes its mean=variance assumption with an extra dispersion parameter. '
-            'Beat Poisson on walk-forward RPS for this league.',
-        )
-    extra = ' Beat Negative Binomial on walk-forward RPS for this league.' if negbinom_meta else ''
-    return (
-        f'poisson_{league}', poisson_params, poisson_meta, 'Bayesian Poisson (Dixon-Coles)',
-        f'Hierarchical Bayesian Poisson regression with Dixon-Coles low-score correction.{extra}',
-    )
 
 
 def model_rps_table(entries: list[tuple[str, dict | None]]) -> pd.DataFrame:
@@ -279,21 +200,25 @@ def model_rps_table(entries: list[tuple[str, dict | None]]) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values('RPS').reset_index(drop=True)
 
 
+OUTCOME_MODEL_INFO = {
+    'elo_xgb': ('XGBoost',
+                'XGBoost classifier over Elo-based features (rolling/exponential moving averages, recent form).'),
+    'logistic': ('Logistic Regression',
+                 'Multinomial logistic regression over the same Elo/form/h2h/momentum features as XGBoost.'),
+    'mlp': ('MLP (Neural Network)',
+            'Small one-hidden-layer neural network over the same features with L2-regularized and '
+            'early-stopped to limit overfitting on a dataset this size.'),
+    'ensemble': ('Ensemble', ''),
+}
+
+
 def render_league_page(league: str) -> None:
     display_name = LEAGUE_DISPLAY_NAMES[league]
     st.title(f'{display_name} match predictor')
 
-    poisson_params = load_poisson(league)
-    booster, elo_state = load_elo_xgb(league)
-    negbinom_params = load_negbinom(league)
-    logistic_params, logistic_state = load_logistic(league)
-    mlp_params, mlp_state = load_mlp(league)
-    poisson_meta = load_metadata(league, 'poisson')
-    elo_meta = load_metadata(league, 'elo_xgb')
-    negbinom_meta = load_metadata(league, 'negbinom')
-    logistic_meta = load_metadata(league, 'logistic')
-    mlp_meta = load_metadata(league, 'mlp')
-    ensemble_meta = load_metadata(league, 'ensemble')
+    lm = load_league(league)
+    meta = lm.meta
+    elo_state = lm.elo_state
 
     st.subheader('Current Elo ratings')
     st.pyplot(elo_table_chart(elo_state))
@@ -304,19 +229,19 @@ def render_league_page(league: str) -> None:
     st.divider()
     st.subheader('Model performance')
     st.dataframe(model_rps_table([
-        ('Bayesian Poisson (Dixon-Coles)', poisson_meta),
-        ('Negative Binomial', negbinom_meta),
-        ('XGBoost', elo_meta),
-        ('Logistic Regression', logistic_meta),
-        ('MLP (Neural Network)', mlp_meta),
-        ('Ensemble', ensemble_meta),
+        ('Bayesian Poisson (Dixon-Coles)', meta['poisson']),
+        ('Negative Binomial', meta['negbinom']),
+        ('XGBoost', meta['elo_xgb']),
+        ('Logistic Regression', meta['logistic']),
+        ('MLP (Neural Network)', meta['mlp']),
+        ('Ensemble', meta['ensemble']),
     ]), hide_index=True)
     st.caption('Walk-forward RPS on held-out seasons. Lower is better. The sections below '
                'show only the best-performing model in each family.')
 
     st.divider()
     st.subheader('Pick a matchup')
-    poisson_teams = sorted(poisson_params['teams'])
+    poisson_teams = sorted(lm.poisson['teams'])
     default_home_team, default_away_team = DEFAULT_MATCHUPS.get(league, (poisson_teams[0], poisson_teams[1]))
     default_home = poisson_teams.index(default_home_team) if default_home_team in poisson_teams else 0
     default_away = poisson_teams.index(default_away_team) if default_away_team in poisson_teams else 1
@@ -332,69 +257,28 @@ def render_league_page(league: str) -> None:
     st.markdown(f'Elo progress — {home} vs {away}')
     st.pyplot(elo_matchup_progress_chart(elo_state, [home, away]))
 
+    prediction = predict_match(lm, home, away)
+    for model_name, probs in prediction.probs.items():
+        log_prediction_safe(f'{model_name}_{league}', meta[model_name], home, away, *probs)
+
     st.divider()
-    goals_model_name, goals_params, goals_meta, goals_title, goals_caption = _best_goals_model(
-        league, poisson_params, negbinom_params, poisson_meta, negbinom_meta,
-    )
-    goals_result = _render_goals_model_section(
-        goals_title, goals_caption, goals_model_name, goals_params, goals_meta, home, away,
+    _render_goals_model_section(
+        prediction.goals_model, prediction.goals, meta[prediction.goals_model],
+        meta['negbinom'] is not None, home, away,
     )
 
-
-    known = set(elo_state['teams'])
-    elo_xgb_probs = None
-    if home in known and away in known:
-        feats = build_feature_row(elo_state, home, away)
-        probs = booster.predict(xgb.DMatrix(feats))[0]
-        classes = list(elo_state['classes'])  # e.g. ['Away', 'Draw', 'Home']
-        elo_xgb_probs = (
-            float(probs[classes.index('Home')]),
-            float(probs[classes.index('Draw')]),
-            float(probs[classes.index('Away')]),
-        )
-
-    logistic_probs = None
-    if logistic_params is not None and home in set(logistic_state['teams']) and away in set(logistic_state['teams']):
-        result = logistic_predict(logistic_params, logistic_state, home, away)
-        logistic_probs = (result['p_home'], result['p_draw'], result['p_away'])
-
-    mlp_probs = None
-    if mlp_params is not None and home in set(mlp_state['teams']) and away in set(mlp_state['teams']):
-        result = mlp_predict(mlp_params, mlp_state, home, away)
-        mlp_probs = (result['p_home'], result['p_draw'], result['p_away'])
-
-    ensemble_probs = None
-    if ensemble_meta is not None and elo_xgb_probs is not None and logistic_probs is not None:
-        ensemble_probs = tuple(
-            (goals_result[f'p_{k}'] + elo_xgb_probs[i] + logistic_probs[i]) / 3
-            for i, k in enumerate(('home', 'draw', 'away'))
-        )
-
-    candidates = [
-        ('elo_xgb', elo_meta, elo_xgb_probs, 'XGBoost',
-         'XGBoost classifier over Elo-based features (rolling/exponential moving averages, recent form).'),
-        ('logistic', logistic_meta, logistic_probs, 'Logistic Regression',
-         'Multinomial logistic regression over the same Elo/form/h2h/momentum features as XGBoost.'),
-        ('mlp', mlp_meta, mlp_probs, 'MLP (Neural Network)',
-         'Small one-hidden-layer neural network over the same features with L2-regularized and '
-         'early-stopped to limit overfitting on a dataset this size.'),
-        ('ensemble', ensemble_meta, ensemble_probs, 'Ensemble',
-         f'Unweighted average of {", ".join(ensemble_meta["constituents"])}.' if ensemble_meta else ''),
-    ]
-    for short_name, meta, probs, _, _ in candidates:
-        if probs is not None:
-            log_prediction_safe(f'{short_name}_{league}', meta, home, away, *probs)
-
-    available = [c for c in candidates if c[1] is not None and c[2] is not None]
     st.divider()
-    if not available:
+    best = best_outcome_model(lm, prediction)
+    if best is None:
         st.info('This matchup includes a team without feature history for these models.')
     else:
-        short_name, meta, probs, title, caption_extra = min(available, key=lambda c: c[1]['rps'])
+        title, caption_extra = OUTCOME_MODEL_INFO[best]
+        if best == 'ensemble':
+            caption_extra = f'Unweighted average of {", ".join(meta["ensemble"]["constituents"])}.'
         st.subheader(title)
-        outcome_row(*probs, home, away)
+        outcome_row(*prediction.probs[best], home, away)
         st.caption(
             'The model shown has the best recorded walk-forward RPS among XGBoost, '
             'Logistic Regression, MLP, and the Ensemble for this league.'
         )
-        st.caption(metadata_caption(meta, caption_extra))
+        st.caption(metadata_caption(meta[best], caption_extra))

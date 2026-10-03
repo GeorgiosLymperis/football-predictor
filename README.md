@@ -38,6 +38,7 @@ scripts/                One training script per model family
 src/match_predict/      The package: data loading, feature engineering, training, prediction, backtesting, mlops
 tests/                  Unit tests (pytest) for the package and scripts
 streamlit_app.py         App entry point
+api.py                   FastAPI app serving the same models as JSON
 app_common.py            Shared rendering and model-loading code for the per-league pages
 ```
 
@@ -56,6 +57,35 @@ To train models yourself, install the heavier training-only dependencies as well
 
 ```bash
 pip install -r requirements-dev.txt
+```
+
+## REST API
+
+`api.py` serves the same champion models as JSON. It shares its loading and prediction code (`src/match_predict/service.py`) with the Streamlit app, so both always return the same numbers.
+
+```bash
+uvicorn api:app --reload
+```
+
+Interactive docs are at `http://localhost:8000/docs`.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /leagues` | Available league keys |
+| `GET /leagues/{league}/teams` | Current season's teams with Elo rating and rank, highest first |
+| `GET /leagues/{league}/teams/{team}` | One team's Elo rating and rank |
+| `GET /leagues/{league}/predict?home=...&away=...` | Win/draw/away probabilities from the model with the best walk-forward RPS for that league. Pass `&model=` (`poisson`, `elo_xgb`, `logistic`, `mlp`, `ensemble`) to pick one |
+
+Team names are case-insensitive. Model files are reloaded automatically when the weekly Elo refresh or a retrain updates them, so the server doesn't need a restart.
+
+```bash
+curl "localhost:8000/leagues/greek/predict?home=AEK&away=Olympiakos"
+```
+
+```json
+{"league": "greek", "home": "AEK", "away": "Olympiakos",
+ "model": {"name": "ensemble", "version": "-", "rps": 0.1958, "baseline_rps": 0.2366, "market_rps": 0.1939},
+ "probs": {"home": 0.320, "draw": 0.363, "away": 0.316}}
 ```
 
 ## Training a model
