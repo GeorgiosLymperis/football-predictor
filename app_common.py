@@ -6,7 +6,10 @@ import pandas as pd
 import streamlit as st
 from matplotlib.colors import LinearSegmentedColormap
 
+from match_predict.config import load_league_config
+from match_predict.features.data import DATA_DIR, load_league_matches
 from match_predict.service import best_outcome_model, load_league, log_prediction_safe, predict_match
+from match_predict.standings import MOMENTUM_THRESHOLD, league_table, with_elo
 
 LEAGUE_DISPLAY_NAMES = {
     'greek': 'Greek Super League',
@@ -91,29 +94,88 @@ def top_scorelines_table(top_scorelines: list[dict]) -> pd.DataFrame:
     ])
 
 
-def elo_table_chart(state: dict):
-    teams = list(state['current_teams'])
-    all_teams = list(state['teams'])
-    elos = sorted(
-        ((t, state['elo'][all_teams.index(t)]) for t in teams if t in all_teams),
-        key=lambda kv: kv[1],
-    )
-    names = [t for t, _ in elos]
-    vals = [v for _, v in elos]
-    fig, ax = plt.subplots(figsize=(8, max(3, 0.4 * len(names))))
-    fig.patch.set_alpha(0)
-    ax.set_facecolor('none')
-    ax.barh(names, vals, height=0.62)
-    ax.set_xlim(min(vals) - 60, max(vals) + 60)
-    ax.tick_params(labelsize=9)
-    ax.xaxis.grid(True, linewidth=0.8)
-    ax.set_axisbelow(True)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    for i, v in enumerate(vals):
-        ax.text(v + 8, i, f'{v:.0f}', va='center', fontsize=9)
-    fig.tight_layout()
-    return fig
+FORM_BADGES = {  # (background, text) - tinted so the letter, not the colour, carries the result
+    'W': ('#d6efd6', '#0b5a0b'),
+    'D': ('#e7e6e2', '#3d3c39'),
+    'L': ('#f6d6d6', '#8f1f1f'),
+}
+MOMENTUM_ICONS = {  # (symbol, colour, label)
+    'up': ('\u25B2', '#0b7a0b', 'Rising'),
+    'steady': ('\u25BA', '#6b6a66', 'Steady'),
+    'down': ('\u25BC', '#b52a2a', 'Falling'),
+}
+_TABLE_CSS = """
+<style>
+.league-table-wrap { overflow-x: auto; }
+.league-table { border-collapse: collapse; width: 100%; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.league-table th { color: #52514e; font-weight: 600; text-align: right; padding: 6px 5px;
+                   border-bottom: 1px solid #d8d7d2; white-space: nowrap; }
+.league-table td { padding: 5px 5px; text-align: right; border-bottom: 1px solid #eeede9; white-space: nowrap; }
+.league-table th.left, .league-table td.left { text-align: left; }
+.league-table td.team { font-weight: 600; color: #0b0b0b; }
+/* Keep position and team visible while the rest scrolls on narrow screens. */
+.league-table .pos, .league-table .team { position: sticky; background: #ffffff; z-index: 1; }
+.league-table .pos { left: 0; min-width: 2em; }
+.league-table .team { left: 2em; padding-right: 10px; }
+.league-table .badge { display: inline-block; width: 1.35em; margin-right: 2px; border-radius: 4px;
+                       text-align: center; font-size: 0.8rem; font-weight: 700; line-height: 1.5em; }
+</style>
+"""
+
+
+def _data_stamp(league: str) -> float:
+    raw_dir = DATA_DIR / load_league_config(league)['raw_dir']
+    return max(p.stat().st_mtime for p in raw_dir.glob('*.csv'))
+
+
+@st.cache_data
+def season_table(league: str, data_stamp: float) -> pd.DataFrame:
+    """Current-season standings; `data_stamp` invalidates the cache when the
+    weekly data refresh rewrites the CSVs."""
+    return league_table(load_league_matches(load_league_config(league)))
+
+
+def _signed(n) -> str:
+    if pd.isna(n):
+        return '\u2013'
+    return f'+{n}' if n > 0 else ('0' if n == 0 else f'\u2212{-n}')
+
+
+def _signed_float(x: float) -> str:
+    return f'+{x:.1f}' if x >= 0 else f'\u2212{-x:.1f}'
+
+
+def league_table_html(table: pd.DataFrame) -> str:
+    headers = [
+        ('Pos', 'left pos', ''), ('Team', 'left team', ''), ('P', '', 'Played'), ('W', '', 'Won'), ('D', '', 'Drawn'),
+        ('L', '', 'Lost'), ('GF', '', 'Goals for'), ('GA', '', 'Goals against'), ('GD', '', 'Goal difference'),
+        ('Pts', '', 'Points'), ('Last 5', 'left', 'Most recent on the right'), ('Elo', '', 'Current Elo rating'),
+        ('vs Elo', '', "Places higher (+) or lower (\u2212) in the table than the team's Elo rank"),
+        ('Trend', 'left', 'Momentum: Elo trend over the last 10 matches, in Elo points per match'),
+    ]
+    head = ''.join(f'<th class="{cls}" title="{tip}">{name}</th>' for name, cls, tip in headers)
+    body = []
+    for r in table.itertuples():
+        form = ''.join(
+            f'<span class="badge" style="background:{FORM_BADGES[x][0]};color:{FORM_BADGES[x][1]}">{x}</span>'
+            for x in r.form
+        )
+        if r.momentum is None:
+            momentum = '\u2013'
+        else:
+            symbol, colour, label = MOMENTUM_ICONS[r.momentum]
+            momentum = (f'<span style="color:{colour}" title="{label}">{symbol}</span> '
+                        f'<span style="color:#52514e">{_signed_float(r.trend_slope)}</span>')
+        elo = '\u2013' if pd.isna(r.elo) else f'{r.elo:.0f}'
+        cells = [
+            f'<td class="left pos">{r.position}</td>', f'<td class="left team">{r.team}</td>',
+            *(f'<td>{v}</td>' for v in (r.played, r.won, r.drawn, r.lost, r.gf, r.ga, _signed(r.gd))),
+            f'<td><b>{r.points}</b></td>', f'<td class="left">{form}</td>', f'<td>{elo}</td>',
+            f'<td>{_signed(r.vs_elo)}</td>', f'<td class="left">{momentum}</td>',
+        ]
+        body.append(f'<tr>{"".join(cells)}</tr>')
+    return (f'{_TABLE_CSS}<div class="league-table-wrap"><table class="league-table">'
+            f'<thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>')
 
 
 def elo_top5_progress_chart(state: dict, top_n: int = 5):
@@ -220,8 +282,16 @@ def render_league_page(league: str) -> None:
     meta = lm.meta
     elo_state = lm.elo_state
 
-    st.subheader('Current Elo ratings')
-    st.pyplot(elo_table_chart(elo_state))
+    st.subheader('League table')
+    table = with_elo(season_table(league, _data_stamp(league)), elo_state)
+    st.html(league_table_html(table))
+    st.caption(
+        'Computed from this season\'s results; ties are broken by goal difference, then goals scored, '
+        'so leagues that use head-to-head first, or have point deductions, may differ from the official table. '
+        '**vs Elo**: places higher (+) or lower (\u2212) in the table than the team\'s Elo rank. '
+        f'**Trend** (momentum): Elo trend over the last 10 matches in points per match; '
+        f'\u25B2 above +{MOMENTUM_THRESHOLD}, \u25BC below \u2212{MOMENTUM_THRESHOLD}, \u25BA in between.'
+    )
 
     st.subheader('Elo progress — top 5 teams')
     st.pyplot(elo_top5_progress_chart(elo_state))
