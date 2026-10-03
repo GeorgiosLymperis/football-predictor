@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from scipy.stats import poisson as scipy_poisson
 
-from match_predict.predict.poisson import predict_outcome_probs, score_matrix
+from match_predict.predict.poisson import predict_outcome_probs, score_matrix, team_ratings
 
 
 def _base_params(**extra):
@@ -63,3 +63,20 @@ def test_negbinom_selected_when_nb_alpha_present():
     result = predict_outcome_probs(params, 'A', 'B', max_goals=20)
     total = result['p_home'] + result['p_draw'] + result['p_away']
     assert total == pytest.approx(1.0, abs=1e-6)
+
+
+def test_team_ratings_recentre_on_given_teams_and_skip_unknown():
+    params = _base_params(
+        teams=np.array(['A', 'B', 'Relegated'], dtype=object),
+        attack=np.array([[np.log(1.5), 0.0, -1.0]]),
+        defence=np.array([[0.0, np.log(2.0), 0.0]]),
+    )
+    out = team_ratings(params, ['A', 'B', 'Promoted']).set_index('team')
+
+    assert list(out.index) == ['A', 'B']
+    # Centred on A and B only: A scores sqrt(1.5) times the average, B 1/sqrt(1.5).
+    assert out.loc['A', 'attack_pct'] == pytest.approx((np.sqrt(1.5) - 1) * 100)
+    assert out.loc['B', 'attack_pct'] == pytest.approx((1 / np.sqrt(1.5) - 1) * 100)
+    # B's defence is better, so B concedes fewer goals (positive), A more.
+    assert out.loc['B', 'defence_pct'] > 0 > out.loc['A', 'defence_pct']
+    assert out.loc['A', 'attack_pct_lo'] <= out.loc['A', 'attack_pct'] <= out.loc['A', 'attack_pct_hi']

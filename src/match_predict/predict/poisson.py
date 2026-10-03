@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy.special import gammaln
 
 MAX_GOALS = 10
@@ -88,3 +89,31 @@ def predict_outcome_probs(params: dict, home: str, away: str, max_goals: int = M
         'score_matrix': sm,
         'top_scorelines': top_scorelines,
     }
+
+
+def team_ratings(params: dict, teams: list[str], interval: float = 0.8) -> pd.DataFrame:
+    """Attack and defence of `teams` in percent relative to their average.
+
+    attack_pct: goals scored vs the average of `teams` (+20 = 20% more).
+    defence_pct: goals conceded vs that average, sign flipped so +20 means
+    conceding 20% fewer. Ratings are only identified up to a constant (the
+    intercept absorbs it), so re-centring on `teams` is exact. Each column has
+    _lo/_hi bounds for the central `interval` of the posterior. Teams not in
+    the model are skipped.
+    """
+    known = [t for t in teams if t in set(params['teams'])]
+    idx = [list(params['teams']).index(t) for t in known]
+    attack = params['attack'][:, idx]
+    defence = params['defence'][:, idx]
+    attack = attack - attack.mean(axis=1, keepdims=True)
+    defence = defence - defence.mean(axis=1, keepdims=True)
+    draws = {
+        'attack_pct': (np.exp(attack) - 1) * 100,
+        'defence_pct': (1 - np.exp(-defence)) * 100,
+    }
+    tail = (1 - interval) / 2 * 100
+    out = pd.DataFrame({'team': known})
+    for name, d in draws.items():
+        out[name] = d.mean(axis=0)
+        out[f'{name}_lo'], out[f'{name}_hi'] = np.percentile(d, [tail, 100 - tail], axis=0)
+    return out

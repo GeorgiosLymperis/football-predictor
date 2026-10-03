@@ -10,6 +10,12 @@ import pytensor.tensor as pt
 
 
 def prepare_df(df: pd.DataFrame, teams: List[str]) -> pd.DataFrame:
+    """Rename columns and add each side's index into `teams`. Every team in
+    `df` must be in `teams`: an unknown team would otherwise get a NaN index
+    that silently becomes 0 (another team) once cast to an integer."""
+    unknown = sorted((set(df['team1']) | set(df['team2'])) - set(teams))
+    if unknown:
+        raise ValueError(f'Teams in the training data but not in the model\'s team list: {unknown}')
     df = df.rename(columns={
         'team1': 'home_team', 'team2': 'away_team',
         'score1': 'goals_home', 'score2': 'goals_away',

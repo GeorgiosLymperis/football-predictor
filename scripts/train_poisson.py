@@ -90,6 +90,10 @@ def main():
 
     print('\nFitting production model...')
     train_window = _recent_window(df, len(cfg['train_seasons']))
+    # The backtest's team list covers its fixed evaluation seasons; production
+    # trains on the latest seasons, so it needs the teams that are actually
+    # there, including this season's promoted teams.
+    teams = sorted(set(train_window['team1']) | set(train_window['team2']))
     train_df = prepare_df(train_window, teams)
     print(f'Training on {len(train_df)} matches from {sorted(train_window["year"].unique())}')
     model, idata = fit_poisson_model(
