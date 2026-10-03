@@ -64,7 +64,7 @@ def _load_metadata(path: Path) -> dict | None:
     return yaml.safe_load(path.read_text()) if path.exists() else None
 
 
-def _artifacts_stamp(league: str) -> float:
+def artifacts_stamp(league: str) -> float:
     """Latest mtime of the league's model files, so a weekly Elo refresh or a
     retrain is picked up without restarting the process."""
     return max(p.stat().st_mtime for p in (MODELS_DIR / league).rglob('*') if p.is_file())
@@ -73,7 +73,7 @@ def _artifacts_stamp(league: str) -> float:
 def load_league(league: str) -> LeagueModels:
     if league not in leagues():
         raise UnknownLeagueError(league)
-    return _load_league(league, _artifacts_stamp(league))
+    return _load_league(league, artifacts_stamp(league))
 
 
 @lru_cache(maxsize=16)

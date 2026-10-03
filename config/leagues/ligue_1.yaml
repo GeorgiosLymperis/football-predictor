@@ -43,3 +43,9 @@ teams:
   - Troyes
   - Valenciennes
   - "Le Mans"
+
+# Season simulation: places relegated directly, and whether the place above
+# them goes to a relegation playoff.
+simulation:
+  relegation_spots: 2
+  relegation_playoff: true

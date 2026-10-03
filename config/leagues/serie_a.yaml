@@ -47,3 +47,9 @@ teams:
   - Udinese
   - Venezia
   - Verona
+
+# Season simulation: places relegated directly, and whether the place above
+# them goes to a relegation playoff.
+simulation:
+  relegation_spots: 3
+  relegation_playoff: false

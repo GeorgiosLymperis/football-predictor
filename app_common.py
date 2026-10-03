@@ -12,8 +12,10 @@ from match_predict.features.data import DATA_DIR, load_league_matches
 from match_predict.fixtures import FixturesUnavailableError
 from match_predict.predict.poisson import team_ratings
 from match_predict.service import (
-    best_outcome_model, fixture_predictions, load_league, log_prediction_safe, predict_match,
+    artifacts_stamp, best_goals_model, best_outcome_model, fixture_predictions, load_league,
+    log_prediction_safe, predict_match,
 )
+from match_predict.simulation import UnratedTeamsError, remaining_fixtures, simulate_season, summarise
 from match_predict.standings import MOMENTUM_THRESHOLD, league_table, with_elo
 
 LEAGUE_DISPLAY_NAMES = {
@@ -345,6 +347,88 @@ def render_attack_defence(lm, current_teams: list[str]) -> None:
     )
 
 
+N_SIMULATIONS = 10_000
+SIM_TINTS = ((0.75, '#9ec5f4'), (0.5, '#b7d3f6'), (0.25, '#cde2fb'), (0.05, '#e6f0fd'))  # blue ramp, light end
+
+
+@st.cache_data(show_spinner='Simulating the rest of the season...')
+def season_simulation(league: str, data_stamp: float, model_stamp: float) -> dict:
+    """Simulated season summary; the stamps invalidate the cache when the
+    weekly data refresh or a retrain changes the inputs."""
+    lm = load_league(league)
+    cfg = load_league_config(league)
+    df = load_league_matches(cfg)
+    season = df[df['year'] == df['year'].max()]
+    params = lm.negbinom if best_goals_model(lm) == 'negbinom' else lm.poisson
+    try:
+        teams, points, positions = simulate_season(params, season, n_sims=N_SIMULATIONS)
+    except UnratedTeamsError as e:
+        return {'unrated': e.teams}
+    sim = cfg.get('simulation', {})
+    current = league_table(df).set_index('team')['points']
+    return {
+        'summary': summarise(teams, current, points, positions, sim.get('relegation_spots', 3),
+                             sim.get('relegation_playoff', False)),
+        'n_remaining': len(remaining_fixtures(season, teams)),
+        'note': sim.get('note', ''),
+    }
+
+
+def _prob(p: float) -> str:
+    if p == 0:
+        return '\u2013'
+    if p < 0.005:
+        return '<1%'
+    if p > 0.995 and p < 1:
+        return '>99%'
+    return f'{p:.0%}'
+
+
+def _prob_cell(p: float) -> str:
+    tint = next((colour for threshold, colour in SIM_TINTS if p >= threshold), None)
+    style = f' style="background:{tint}"' if tint else ''
+    return f'<td{style}>{_prob(p)}</td>'
+
+
+def simulation_html(summary: pd.DataFrame) -> str:
+    prob_cols = [('p_title', 'Title', 'Finish first'), ('p_top4', 'Top 4', 'Finish in the top four')]
+    if 'p_relegation_playoff' in summary:
+        prob_cols.append(('p_relegation_playoff', 'Playoff', 'Finish in the relegation playoff place'))
+    prob_cols.append(('p_relegation', 'Relegated', 'Finish in a direct relegation place'))
+    headers = [('#', 'left pos', 'Ordered by average finishing position'), ('Team', 'left team', ''),
+               ('Pts', '', 'Points so far'),
+               ('Proj. pts', '', 'Average final points across simulations'),
+               ('Avg pos', '', 'Average finishing position'),
+               *((label, '', tip) for _, label, tip in prob_cols)]
+    head = ''.join(f'<th class="{cls}" title="{tip}">{name}</th>' for name, cls, tip in headers)
+    body = []
+    for rank, r in enumerate(summary.itertuples(), start=1):
+        cells = [f'<td class="left pos">{rank}</td>', f'<td class="left team">{r.team}</td>',
+                 f'<td>{r.points_now}</td>',
+                 f'<td><b>{r.expected_points:.0f}</b></td>', f'<td>{r.expected_position:.1f}</td>',
+                 *(_prob_cell(getattr(r, col)) for col, _, _ in prob_cols)]
+        body.append(f'<tr>{"".join(cells)}</tr>')
+    return (f'{_TABLE_CSS}<div class="league-table-wrap"><table class="league-table">'
+            f'<thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>')
+
+
+def render_season_simulation(league: str) -> None:
+    st.subheader('Season simulation')
+    result = season_simulation(league, _data_stamp(league), artifacts_stamp(league))
+    if 'unrated' in result:
+        st.info('Available after the next model retrain: the goals model has no rating yet for '
+                f'{", ".join(result["unrated"])}.')
+        return
+    st.html(simulation_html(result['summary']))
+    st.caption(
+        f'{N_SIMULATIONS:,} simulations of the {result["n_remaining"]} remaining matches with the goals model. '
+        'Each simulated season draws team ratings from the model\'s uncertainty, so teams with few matches '
+        'behind them (such as newly promoted ones) have a wider spread of outcomes. Ties are broken by goal '
+        'difference, then goals scored. Shading marks probabilities of 5%, 25%, 50% and 75% and above. '
+        + result['note']
+    )
+
+
 def elo_top5_progress_chart(state: dict, top_n: int = 5):
     """Recent Elo trajectory (by date) for the top_n current teams by
     rating."""
@@ -463,6 +547,8 @@ def render_league_page(league: str) -> None:
     render_fixtures(lm, display_name)
 
     render_attack_defence(lm, list(table['team']))
+
+    render_season_simulation(league)
 
     st.subheader('Elo progress — top 5 teams')
     st.pyplot(elo_top5_progress_chart(elo_state))

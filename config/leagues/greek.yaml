@@ -39,3 +39,10 @@ teams:
   - "Volos NFC"
   - Xanthi
   - Kalamata
+
+# Season simulation: places relegated directly, and whether the place above
+# them goes to a relegation playoff. The note is shown under the simulation.
+simulation:
+  relegation_spots: 2
+  relegation_playoff: false
+  note: "Regular season only: the playoff stage that follows is not simulated."
