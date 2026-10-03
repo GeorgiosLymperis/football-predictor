@@ -71,5 +71,7 @@ def with_elo(table: pd.DataFrame, elo_state: dict) -> pd.DataFrame:
     out['elo_rank'] = out['elo'].rank(ascending=False, method='min').astype('Int64')
     out['vs_elo'] = out['elo_rank'] - out['position']
     out['trend_slope'] = lookup('trend_slope')
+    # Missing momentum reads as None or NaN depending on the pandas version;
+    # check it with pd.isna.
     out['momentum'] = [None if np.isnan(s) else momentum_label(s) for s in out['trend_slope']]
     return out

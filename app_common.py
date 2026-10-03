@@ -167,7 +167,7 @@ def league_table_html(table: pd.DataFrame) -> str:
             f'<span class="badge" style="background:{FORM_BADGES[x][0]};color:{FORM_BADGES[x][1]}">{x}</span>'
             for x in r.form
         )
-        if r.momentum is None:
+        if pd.isna(r.momentum):
             momentum = '\u2013'
         else:
             symbol, colour, label = MOMENTUM_ICONS[r.momentum]

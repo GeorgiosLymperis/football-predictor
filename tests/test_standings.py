@@ -68,4 +68,4 @@ def test_with_elo_ranks_compares_and_handles_unknown_teams():
     state_without_c = {k: v[:2] for k, v in state.items()}
     partial = with_elo(league_table(season), state_without_c).set_index('team')
     assert np.isnan(partial.loc['C', 'elo'])
-    assert partial.loc['C', 'momentum'] is None
+    assert pd.isna(partial.loc['C', 'momentum'])
