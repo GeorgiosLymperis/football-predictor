@@ -2,12 +2,14 @@
 
 Run with: uvicorn api:app --reload
 """
+import datetime as dt
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from match_predict import service
+from match_predict import fixtures, service
 
 ModelName = Literal['poisson', 'negbinom', 'elo_xgb', 'logistic', 'mlp', 'ensemble']
 
@@ -15,6 +17,7 @@ app = FastAPI(
     title='Football Match Predictor API',
     description='Elo ratings and win/draw/away probabilities for six European football leagues.',
 )
+app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['GET'])
 
 
 class TeamElo(BaseModel):
@@ -44,6 +47,16 @@ class MatchPrediction(BaseModel):
     away: str
     model: ModelInfo
     probs: Probabilities
+
+
+class Fixture(BaseModel):
+    date: dt.date
+    kickoff: str | None  # as listed by football-data.co.uk (UK time)
+    home: str
+    away: str
+    model: ModelInfo | None  # None if no model has history for both teams
+    probs: Probabilities | None
+    market_probs: Probabilities | None  # de-vigged average bookmaker odds
 
 
 def _league(league: str) -> service.LeagueModels:
@@ -94,25 +107,60 @@ def predict(
     if home == away:
         raise HTTPException(422, 'home and away must be different teams')
 
+    model_info, probs = _predict(lm, home, away, model)
+    service.log_prediction_safe(f'{model_info.name}_{league}', lm.meta[model_info.name], home, away,
+                                probs.home, probs.draw, probs.away)
+    return MatchPrediction(league=league, home=home, away=away, model=model_info, probs=probs)
+
+
+@app.get('/leagues/{league}/fixtures')
+def list_fixtures(
+    league: str,
+    model: ModelName | None = Query(None, description='Defaults to the model with the best walk-forward RPS'),
+) -> list[Fixture]:
+    """Upcoming matches (the next few days, as published by football-data.co.uk)
+    with model and market probabilities. Empty when the league has no games
+    scheduled in that window, e.g. during an international break."""
+    lm = _league(league)
+    try:
+        upcoming = fixtures.league_fixtures(league)
+    except fixtures.FixturesUnavailableError as e:
+        raise HTTPException(503, str(e))
+
+    out = []
+    for f in upcoming:
+        model_info = probs = None
+        try:
+            model_info, probs = _predict(lm, service.resolve_team(lm, f['home']),
+                                         service.resolve_team(lm, f['away']), model)
+        except (service.UnknownTeamError, HTTPException):
+            pass
+        market = f['market_probs']
+        out.append(Fixture(
+            date=f['date'], kickoff=f['kickoff'], home=f['home'], away=f['away'],
+            model=model_info, probs=probs,
+            market_probs=Probabilities(home=market[0], draw=market[1], away=market[2]) if market else None,
+        ))
+    return out
+
+
+def _predict(lm: service.LeagueModels, home: str, away: str,
+             model: str | None) -> tuple[ModelInfo, Probabilities]:
+    """The requested model's prediction, or by default the one with the best
+    walk-forward RPS among those that have history for both teams."""
     prediction = service.predict_match(lm, home, away)
     chosen = model or service.best_outcome_model(lm, prediction)
     if chosen is None or chosen not in prediction.probs or lm.meta[chosen] is None:
         detail = f'Model {model!r} is not available' if model else 'No model has feature history'
-        raise HTTPException(422, f'{detail} for {home} vs {away} in {league}')
+        raise HTTPException(422, f'{detail} for {home} vs {away} in {lm.league}')
 
     meta = lm.meta[chosen]
     p_home, p_draw, p_away = prediction.probs[chosen]
-    service.log_prediction_safe(f'{chosen}_{league}', meta, home, away, p_home, p_draw, p_away)
-    return MatchPrediction(
-        league=league,
-        home=home,
-        away=away,
-        model=ModelInfo(
-            name=chosen,
-            version=meta.get('version'),
-            rps=meta['rps'],
-            baseline_rps=meta['baseline_rps'],
-            market_rps=meta.get('market_rps'),
-        ),
-        probs=Probabilities(home=p_home, draw=p_draw, away=p_away),
+    model_info = ModelInfo(
+        name=chosen,
+        version=meta.get('version'),
+        rps=meta['rps'],
+        baseline_rps=meta['baseline_rps'],
+        market_rps=meta.get('market_rps'),
     )
+    return model_info, Probabilities(home=p_home, draw=p_draw, away=p_away)

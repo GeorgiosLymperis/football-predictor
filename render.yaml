@@ -1,0 +1,15 @@
+# Render Blueprint for the public API. Redeploys on every push to master, so
+# the weekly Elo refresh and monthly retrain go live automatically.
+services:
+  - type: web
+    name: football-predictor-api
+    runtime: python
+    plan: free
+    branch: master
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /leagues
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11

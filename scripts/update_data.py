@@ -3,20 +3,10 @@ import sys
 
 import requests
 
-from match_predict.config import load_league_config
+from match_predict.config import DIVISION_CODES, load_league_config
 from match_predict.features.data import DATA_DIR, load_league_matches
 
 BASE_URL = 'https://www.football-data.co.uk/mmz4281'
-
-DIVISION_CODES = {
-    'greek': 'G1',
-    'premier_league': 'E0',
-    'la_liga': 'SP1',
-    'bundesliga': 'D1',
-    'serie_a': 'I1',
-    'ligue_1': 'F1',
-}
-
 
 def _season_code(season: str) -> str:
     """'2025-2026' -> '2526', matching football-data.co.uk's URL scheme."""

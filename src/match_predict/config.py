@@ -5,6 +5,16 @@ import yaml
 CONFIG_DIR = Path(__file__).resolve().parents[2] / 'config'
 LEAGUES_DIR = CONFIG_DIR / 'leagues'
 
+# football-data.co.uk division code for each league.
+DIVISION_CODES = {
+    'greek': 'G1',
+    'premier_league': 'E0',
+    'la_liga': 'SP1',
+    'bundesliga': 'D1',
+    'serie_a': 'I1',
+    'ligue_1': 'F1',
+}
+
 _REQUIRED_KEYS = {
     'xgb': {'model_name', 'elo', 'xgb_params', 'feature_variants'},
     'logistic': {'model_name', 'logistic_params', 'feature_variants'},

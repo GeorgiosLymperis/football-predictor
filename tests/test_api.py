@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -86,3 +88,54 @@ def test_ensemble_is_mean_of_constituents():
     p = service.predict_match(lm, home, away).probs
     for i in range(3):
         assert p['ensemble'][i] == pytest.approx((p['poisson'][i] + p['elo_xgb'][i] + p['logistic'][i]) / 3)
+
+
+FIXTURES_CSV = (
+    '﻿Div,Date,Time,HomeTeam,AwayTeam,AvgH,AvgD,AvgA\n'
+    'G1,05/10/2026,19:30,{away},{home},3.0,3.2,2.5\n'
+    'G1,04/10/2026,17:00,{home},{away},2.0,3.4,4.0\n'
+    'G1,04/10/2026,,{home},Brand New FC,,,\n'
+    'E0,04/10/2026,15:00,Arsenal,Chelsea,2.0,3.5,3.8\n'
+)
+
+
+@pytest.fixture
+def fixtures_csv(monkeypatch, client):
+    from match_predict import fixtures
+    home, away = _two_current_teams(client, 'greek')
+    csv = FIXTURES_CSV.format(home=home, away=away)
+    monkeypatch.setattr(fixtures.requests, 'get', lambda *a, **k: Mock(content=csv.encode('utf-8'), raise_for_status=lambda: None))
+    fixtures.clear_cache()
+    yield home, away
+    fixtures.clear_cache()
+
+
+def test_fixtures_only_league_sorted_with_model_and_market_probs(client, fixtures_csv):
+    home, away = fixtures_csv
+    body = client.get('/leagues/greek/fixtures').json()
+
+    assert [(f['date'], f['home'], f['away']) for f in body] == [
+        ('2026-10-04', home, away), ('2026-10-04', home, 'Brand New FC'), ('2026-10-05', away, home),
+    ]
+    first = body[0]
+    assert first['kickoff'] == '17:00'
+    assert sum(first['probs'].values()) == pytest.approx(1.0, abs=1e-6)
+    assert sum(first['market_probs'].values()) == pytest.approx(1.0)
+    assert first['market_probs']['home'] > first['market_probs']['away']
+
+
+def test_fixture_with_unknown_team_has_no_probs(client, fixtures_csv):
+    unknown = client.get('/leagues/greek/fixtures').json()[1]
+    assert unknown['kickoff'] is None
+    assert unknown['model'] is None and unknown['probs'] is None and unknown['market_probs'] is None
+
+
+def test_fixtures_source_down_is_503(client, monkeypatch):
+    from match_predict import fixtures
+
+    def boom(*a, **k):
+        raise fixtures.requests.ConnectionError('down')
+
+    monkeypatch.setattr(fixtures.requests, 'get', boom)
+    fixtures.clear_cache()
+    assert client.get('/leagues/greek/fixtures').status_code == 503

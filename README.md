@@ -75,8 +75,10 @@ Interactive docs are at `http://localhost:8000/docs`.
 | `GET /leagues/{league}/teams` | Current season's teams with Elo rating and rank, highest first |
 | `GET /leagues/{league}/teams/{team}` | One team's Elo rating and rank |
 | `GET /leagues/{league}/predict?home=...&away=...` | Win/draw/away probabilities from the model with the best walk-forward RPS for that league. Pass `&model=` (`poisson`, `elo_xgb`, `logistic`, `mlp`, `ensemble`) to pick one |
+| `GET /leagues/{league}/fixtures` | Upcoming matches (the next few days, from football-data.co.uk's `fixtures.csv`) with model probabilities and de-vigged market probabilities. Empty when the league has no games in that window |
 
 Team names are case-insensitive. Model files are reloaded automatically when the weekly Elo refresh or a retrain updates them, so the server doesn't need a restart.
+The fixtures file is downloaded at most once an hour. CORS is open for `GET` requests, so websites can call the API directly from the browser.
 
 ```bash
 curl "localhost:8000/leagues/greek/predict?home=AEK&away=Olympiakos"
@@ -87,6 +89,10 @@ curl "localhost:8000/leagues/greek/predict?home=AEK&away=Olympiakos"
  "model": {"name": "ensemble", "version": "-", "rps": 0.1958, "baseline_rps": 0.2366, "market_rps": 0.1939},
  "probs": {"home": 0.320, "draw": 0.363, "away": 0.316}}
 ```
+
+### Deploying
+
+`render.yaml` deploys the API to [Render](https://render.com)'s free tier: in the Render dashboard choose **New > Blueprint** and select this repository. It redeploys on every push to `master`, so the weekly Elo refresh and monthly retrain go live automatically. Free instances sleep after about 15 minutes without traffic, so the first request after that takes a little while to answer.
 
 ## Training a model
 
