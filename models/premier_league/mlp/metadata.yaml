@@ -1,9 +1,9 @@
 model_name: mlp_premier_league
 version: '1'
-run_id: ec9cd8bcae774a0cb4d4f3a97cde904a
+run_id: f4e38fd7677a4f13b625aeda28e5697c
 rps: 0.20985697062894815
 baseline_rps: 0.23169153929746178
 market_rps: 0.20133231245714045
 market_n_matches: 760
-promoted_at: '2026-10-01T12:07:34.466625+00:00'
-git_sha: 92565e09afa5ffb8b150d39005b85a70194c06d5
+promoted_at: '2026-10-03T14:11:37.148382+00:00'
+git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00

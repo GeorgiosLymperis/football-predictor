@@ -1,9 +1,9 @@
 model_name: xgb_la_liga
 version: '1'
-run_id: ecd404a3f772477d9b31f4e9c1f23805
+run_id: 1f42f396552f4215b5d767930d723cc2
 rps: 0.20533558439498925
 baseline_rps: 0.22592785086597522
 market_rps: 0.19279852326110275
 market_n_matches: 760
-promoted_at: '2026-10-01T12:11:17.846255+00:00'
-git_sha: 92565e09afa5ffb8b150d39005b85a70194c06d5
+promoted_at: '2026-10-03T14:16:35.269637+00:00'
+git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00

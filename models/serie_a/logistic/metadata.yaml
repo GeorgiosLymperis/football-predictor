@@ -1,9 +1,9 @@
 model_name: logistic_serie_a
 version: '1'
-run_id: fdded7eb78b14eeab9d1113d5c9e8dde
-rps: 0.196784201004533
+run_id: db6c5374a58547c593803085e140da3e
+rps: 0.1967840656462204
 baseline_rps: 0.23190511537241096
 market_rps: 0.19010013143351226
 market_n_matches: 760
-promoted_at: '2026-10-01T12:24:05.465855+00:00'
-git_sha: 92565e09afa5ffb8b150d39005b85a70194c06d5
+promoted_at: '2026-10-03T14:37:18.109280+00:00'
+git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00
