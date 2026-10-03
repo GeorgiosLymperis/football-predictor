@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import altair as alt
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -8,7 +9,11 @@ from matplotlib.colors import LinearSegmentedColormap
 
 from match_predict.config import load_league_config
 from match_predict.features.data import DATA_DIR, load_league_matches
-from match_predict.service import best_outcome_model, load_league, log_prediction_safe, predict_match
+from match_predict.fixtures import FixturesUnavailableError
+from match_predict.predict.poisson import team_ratings
+from match_predict.service import (
+    best_outcome_model, fixture_predictions, load_league, log_prediction_safe, predict_match,
+)
 from match_predict.standings import MOMENTUM_THRESHOLD, league_table, with_elo
 
 LEAGUE_DISPLAY_NAMES = {
@@ -178,6 +183,168 @@ def league_table_html(table: pd.DataFrame) -> str:
             f'<thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>')
 
 
+OUTCOME_COLOURS = (('Home win', '#2a78d6'), ('Draw', '#c9c8c2'), ('Away win', '#eb6834'))
+_FIXTURES_CSS = """
+<style>
+.fixtures-wrap { overflow-x: auto; }
+.fixtures { border-collapse: collapse; width: 100%; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.fixtures th { color: #52514e; font-weight: 600; text-align: left; padding: 6px 6px;
+               border-bottom: 1px solid #d8d7d2; white-space: nowrap; }
+.fixtures td { padding: 7px 6px; border-bottom: 1px solid #eeede9; white-space: nowrap; vertical-align: middle; }
+.fixtures .when { color: #52514e; font-size: 0.8rem; }
+.fixtures .match { font-weight: 600; color: #0b0b0b; }
+.fixtures .bar { display: inline-flex; gap: 2px; width: 120px; height: 10px; vertical-align: middle; margin-right: 8px; }
+.fixtures .bar span:first-child { border-radius: 4px 0 0 4px; }
+.fixtures .bar span:last-child { border-radius: 0 4px 4px 0; }
+.fixtures .nums { color: #0b0b0b; }
+.fixtures .muted { color: #52514e; }
+.fixtures-legend { font-size: 0.8rem; color: #52514e; margin: 0 0 6px 0; }
+.fixtures-legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+                           margin: 0 4px 0 12px; vertical-align: -1px; }
+.fixtures-legend .swatch:first-child { margin-left: 0; }
+@media (max-width: 640px) { .fixtures .bar { width: 56px; margin-right: 6px; } }
+</style>
+"""
+
+
+def _pct_triplet(probs) -> str:
+    return ' \u00b7 '.join(f'{p:.0%}' for p in probs)
+
+
+def fixtures_html(rows: list[dict]) -> str:
+    legend = ''.join(
+        f'<span class="swatch" style="background:{colour}"></span>{label}' for label, colour in OUTCOME_COLOURS
+    )
+    head = '<tr><th>Match</th><th>Model: home \u00b7 draw \u00b7 away</th><th>Market</th></tr>'
+    body = []
+    for f in rows:
+        when = f['date'].strftime('%a %d %b') + (f' \u00b7 {f["kickoff"]}' if f['kickoff'] else '')
+        if f['probs'] is None:
+            model = '<span class="muted">no model history for a team</span>'
+        else:
+            segments = ''.join(
+                f'<span style="width:{p * 100:.1f}%;background:{colour}" title="{label} {p:.0%}"></span>'
+                for p, (label, colour) in zip(f['probs'], OUTCOME_COLOURS)
+            )
+            model = f'<span class="bar">{segments}</span><span class="nums">{_pct_triplet(f["probs"])}</span>'
+        market = (f'<span class="muted">{_pct_triplet(f["market_probs"])}</span>'
+                  if f['market_probs'] else '<span class="muted">\u2013</span>')
+        body.append(f'<tr><td><div class="match">{f["home"]} \u2013 {f["away"]}</div>'
+                    f'<div class="when">{when}</div></td><td>{model}</td><td>{market}</td></tr>')
+    return (f'{_FIXTURES_CSS}<div class="fixtures-legend">{legend}</div><div class="fixtures-wrap">'
+            f'<table class="fixtures"><thead>{head}</thead><tbody>{"".join(body)}</tbody></table></div>')
+
+
+def render_fixtures(lm, display_name: str) -> None:
+    st.subheader('Upcoming fixtures')
+    try:
+        rows = fixture_predictions(lm)
+    except FixturesUnavailableError:
+        st.warning('Upcoming fixtures are unavailable right now (football-data.co.uk could not be reached).')
+        return
+    if not rows:
+        st.info(f'No {display_name} matches in the fixture list right now. football-data.co.uk lists '
+                'only the next few days of matches, so this is empty during international breaks '
+                'and between rounds.')
+        return
+    st.html(fixtures_html(rows))
+    served = {f['model'] for f in rows if f['model']}
+    titles = ', '.join(OUTCOME_MODEL_INFO[m][0] for m in sorted(served)) or "the league's best model"
+    st.caption(
+        f'Model probabilities from {titles}, the model with the best '
+        'walk-forward RPS for this league. Market probabilities are the average bookmaker odds with the '
+        'bookmaker margin removed. Kick-off times are UK time, as listed by football-data.co.uk.'
+    )
+
+
+def _visible_labels(xs, ys, names, x_dom, y_dom, always=None, width=640, height=400) -> np.ndarray:
+    """Which team names to print beside their dots: furthest from average
+    first, skipping any label that would overlap another label or a dot.
+    `always` is labelled regardless. Pixel sizes are approximate since the
+    chart width follows the page; skipped teams still show on hover."""
+    px_x = width / (x_dom[1] - x_dom[0])
+    px_y = height / (y_dom[1] - y_dom[0])
+    px = (np.asarray(xs) - x_dom[0]) * px_x
+    py = (y_dom[1] - np.asarray(ys)) * px_y
+    boxes = [(x - 6, x + 6, y - 6, y + 6) for x, y in zip(px, py)]  # dots
+    label_box = [(x + 6, x + 10 + 6.5 * len(n), y - 7, y + 7) for x, y, n in zip(px, py, names)]
+    order = sorted(range(len(names)), key=lambda i: (names[i] != always, -np.hypot(xs[i], ys[i])))
+    visible = np.zeros(len(names), dtype=bool)
+    for i in order:
+        l, r, t, b = label_box[i]
+        clear = all(r < bl or l > br or b < bt or t > bb
+                    for j, (bl, br, bt, bb) in enumerate(boxes) if j != i)
+        if clear or names[i] == always:
+            visible[i] = True
+            boxes.append(label_box[i])
+    return visible
+
+
+def attack_defence_chart(ratings: pd.DataFrame, highlight: str | None = None) -> alt.LayerChart:
+    """Scatter of attack (x) against defence (y); right and up are better."""
+    pad = 8
+    x_dom = [min(ratings['attack_pct'].min(), 0) - pad, max(ratings['attack_pct'].max(), 0) + pad * 2]
+    y_dom = [min(ratings['defence_pct'].min(), 0) - pad, max(ratings['defence_pct'].max(), 0) + pad]
+    data = ratings.assign(
+        attack_label=[f'{v:+.0f}% ({lo:+.0f} to {hi:+.0f})' for v, lo, hi in
+                      ratings[['attack_pct', 'attack_pct_lo', 'attack_pct_hi']].to_numpy()],
+        defence_label=[f'{v:+.0f}% ({lo:+.0f} to {hi:+.0f})' for v, lo, hi in
+                       ratings[['defence_pct', 'defence_pct_lo', 'defence_pct_hi']].to_numpy()],
+        labelled=_visible_labels(ratings['attack_pct'].to_numpy(), ratings['defence_pct'].to_numpy(),
+                                 list(ratings['team']), x_dom, y_dom, always=highlight),
+        highlighted=ratings['team'].eq(highlight),
+    )
+    x = alt.X('attack_pct:Q', scale=alt.Scale(domain=x_dom, nice=False),
+              title='Attack: goals scored vs league average (%)')
+    y = alt.Y('defence_pct:Q', scale=alt.Scale(domain=y_dom, nice=False),
+              title='Defence: fewer goals conceded vs league average (%)')
+    base = alt.Chart(data).encode(x=x, y=y)
+    zero_x = alt.Chart(pd.DataFrame({'v': [0]})).mark_rule(color='#c9c8c2', strokeDash=[4, 4]).encode(x='v:Q')
+    zero_y = alt.Chart(pd.DataFrame({'v': [0]})).mark_rule(color='#c9c8c2', strokeDash=[4, 4]).encode(y='v:Q')
+    corners = pd.DataFrame([
+        (x_dom[1], y_dom[1], 'Strong at both ends', 'right', 'top'),
+        (x_dom[0], y_dom[1], 'Defence first', 'left', 'top'),
+        (x_dom[1], y_dom[0], 'Attack first', 'right', 'bottom'),
+        (x_dom[0], y_dom[0], 'Weak at both ends', 'left', 'bottom'),
+    ], columns=['x', 'y', 'text', 'align', 'baseline'])
+    corner_layers = [
+        alt.Chart(corners[corners['align'].eq(a) & corners['baseline'].eq(b)])
+        .mark_text(align=a, baseline=b, dx=6 if a == 'left' else -6, dy=6 if b == 'top' else -6,
+                   color='#8a8984', fontSize=11, fontStyle='italic')
+        .encode(x='x:Q', y='y:Q', text='text:N')
+        for a, b in (('right', 'top'), ('left', 'top'), ('right', 'bottom'), ('left', 'bottom'))
+    ]
+    points = base.mark_circle(size=90, opacity=1, stroke='#ffffff', strokeWidth=2).encode(
+        color=alt.condition('datum.highlighted', alt.value('#eb6834'), alt.value('#2a78d6')),
+        order=alt.Order('highlighted:Q'),
+        tooltip=[alt.Tooltip('team:N', title='Team'),
+                 alt.Tooltip('attack_label:N', title='Attack (80% range)'),
+                 alt.Tooltip('defence_label:N', title='Defence (80% range)')],
+    )
+    labels = base.transform_filter('datum.labelled && !datum.highlighted').mark_text(
+        align='left', dx=8, fontSize=11, color='#3d3c39').encode(text='team:N')
+    highlighted = base.transform_filter('datum.highlighted').mark_text(
+        align='left', dx=8, fontSize=12, fontWeight='bold', color='#0b0b0b').encode(text='team:N')
+    return alt.layer(zero_x, zero_y, *corner_layers, points, labels, highlighted).properties(height=440)
+
+
+def render_attack_defence(lm, current_teams: list[str]) -> None:
+    st.subheader('Attack vs defence')
+    ratings = team_ratings(lm.poisson, current_teams)
+    highlight = st.selectbox('Highlight a team', sorted(ratings['team']), index=None,
+                             placeholder='Choose a team', key=f'{lm.league}_highlight')
+    st.altair_chart(attack_defence_chart(ratings, highlight), use_container_width=True)
+    missing = [t for t in current_teams if t not in set(ratings['team'])]
+    note = (f' Not rated by the model yet: {", ".join(missing)}.'
+            if missing else '')
+    st.caption(
+        'Team ratings from the Bayesian Poisson model, which estimates how many goals each team scores '
+        'and concedes against an average opponent. Right = scores more, up = concedes fewer, relative '
+        'to the average of this season\'s teams. Teams without a label are in crowded areas: hover a dot, '
+        'or pick the team above. Hover also shows the 80% uncertainty range.' + note
+    )
+
+
 def elo_top5_progress_chart(state: dict, top_n: int = 5):
     """Recent Elo trajectory (by date) for the top_n current teams by
     rating."""
@@ -293,6 +460,10 @@ def render_league_page(league: str) -> None:
         f'\u25B2 above +{MOMENTUM_THRESHOLD}, \u25BC below \u2212{MOMENTUM_THRESHOLD}, \u25BA in between.'
     )
 
+    render_fixtures(lm, display_name)
+
+    render_attack_defence(lm, list(table['team']))
+
     st.subheader('Elo progress — top 5 teams')
     st.pyplot(elo_top5_progress_chart(elo_state))
 
@@ -311,14 +482,14 @@ def render_league_page(league: str) -> None:
 
     st.divider()
     st.subheader('Pick a matchup')
-    poisson_teams = sorted(lm.poisson['teams'])
-    default_home_team, default_away_team = DEFAULT_MATCHUPS.get(league, (poisson_teams[0], poisson_teams[1]))
-    default_home = poisson_teams.index(default_home_team) if default_home_team in poisson_teams else 0
-    default_away = poisson_teams.index(default_away_team) if default_away_team in poisson_teams else 1
+    season_teams = sorted(table['team'])
+    default_home_team, default_away_team = DEFAULT_MATCHUPS.get(league, (season_teams[0], season_teams[1]))
+    default_home = season_teams.index(default_home_team) if default_home_team in season_teams else 0
+    default_away = season_teams.index(default_away_team) if default_away_team in season_teams else 1
 
     col_home, col_away = st.columns(2)
-    home = col_home.selectbox('Home team', poisson_teams, index=default_home, key=f'{league}_home')
-    away = col_away.selectbox('Away team', poisson_teams, index=default_away, key=f'{league}_away')
+    home = col_home.selectbox('Home team', season_teams, index=default_home, key=f'{league}_home')
+    away = col_away.selectbox('Away team', season_teams, index=default_away, key=f'{league}_away')
 
     if home == away:
         st.warning('Pick two different teams.')
@@ -332,10 +503,15 @@ def render_league_page(league: str) -> None:
         log_prediction_safe(f'{model_name}_{league}', meta[model_name], home, away, *probs)
 
     st.divider()
-    _render_goals_model_section(
-        prediction.goals_model, prediction.goals, meta[prediction.goals_model],
-        meta['negbinom'] is not None, home, away,
-    )
+    if prediction.goals is None:
+        st.subheader(GOALS_MODEL_INFO[prediction.goals_model][0])
+        st.info(f'The goals model has no rating yet for {home if home not in lm.poisson["teams"] else away}; '
+                'it is added at the next retrain.')
+    else:
+        _render_goals_model_section(
+            prediction.goals_model, prediction.goals, meta[prediction.goals_model],
+            meta['negbinom'] is not None, home, away,
+        )
 
     st.divider()
     best = best_outcome_model(lm, prediction)

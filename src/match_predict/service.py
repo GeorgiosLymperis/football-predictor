@@ -9,6 +9,7 @@ import numpy as np
 import xgboost as xgb
 import yaml
 
+from match_predict import fixtures
 from match_predict.mlops.monitoring import log_prediction
 from match_predict.predict.logistic import predict_outcome_probs as logistic_predict
 from match_predict.predict.mlp import predict_outcome_probs as mlp_predict
@@ -178,6 +179,34 @@ def best_outcome_model(lm: LeagueModels, prediction: MatchPrediction) -> str | N
     this matchup, or None if none could."""
     available = [m for m in OUTCOME_MODELS if m in prediction.probs and lm.meta[m] is not None]
     return min(available, key=lambda m: lm.meta[m]['rps'], default=None)
+
+
+def served_prediction(lm: LeagueModels, home: str, away: str,
+                      model: str | None = None) -> tuple[str, tuple[float, float, float]] | None:
+    """(model name, (home, draw, away)) from `model`, or by default from the
+    model with the best walk-forward RPS that has history for both teams.
+    None if that model can't predict this matchup."""
+    prediction = predict_match(lm, home, away)
+    chosen = model or best_outcome_model(lm, prediction)
+    if chosen is None or chosen not in prediction.probs or lm.meta[chosen] is None:
+        return None
+    return chosen, prediction.probs[chosen]
+
+
+def fixture_predictions(lm: LeagueModels, model: str | None = None) -> list[dict]:
+    """Upcoming fixtures (see fixtures.league_fixtures) with 'model' and
+    'probs' added; both are None for a team the models don't know. Raises
+    fixtures.FixturesUnavailableError if the fixtures file can't be fetched."""
+    out = []
+    for f in fixtures.league_fixtures(lm.league):
+        served = None
+        try:
+            home, away = resolve_team(lm, f['home']), resolve_team(lm, f['away'])
+            served = served_prediction(lm, home, away, model)
+        except UnknownTeamError:
+            pass
+        out.append({**f, 'model': served[0] if served else None, 'probs': served[1] if served else None})
+    return out
 
 
 def log_prediction_safe(model_name: str, meta: dict | None, home: str, away: str,

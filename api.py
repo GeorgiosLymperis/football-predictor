@@ -123,44 +123,43 @@ def list_fixtures(
     scheduled in that window, e.g. during an international break."""
     lm = _league(league)
     try:
-        upcoming = fixtures.league_fixtures(league)
+        upcoming = service.fixture_predictions(lm, model)
     except fixtures.FixturesUnavailableError as e:
         raise HTTPException(503, str(e))
 
-    out = []
-    for f in upcoming:
-        model_info = probs = None
-        try:
-            model_info, probs = _predict(lm, service.resolve_team(lm, f['home']),
-                                         service.resolve_team(lm, f['away']), model)
-        except (service.UnknownTeamError, HTTPException):
-            pass
-        market = f['market_probs']
-        out.append(Fixture(
+    return [
+        Fixture(
             date=f['date'], kickoff=f['kickoff'], home=f['home'], away=f['away'],
-            model=model_info, probs=probs,
-            market_probs=Probabilities(home=market[0], draw=market[1], away=market[2]) if market else None,
-        ))
-    return out
+            model=_model_info(lm, f['model']) if f['model'] else None,
+            probs=_probabilities(f['probs']),
+            market_probs=_probabilities(f['market_probs']),
+        )
+        for f in upcoming
+    ]
+
+
+def _probabilities(p: tuple[float, float, float] | None) -> Probabilities | None:
+    return Probabilities(home=p[0], draw=p[1], away=p[2]) if p else None
+
+
+def _model_info(lm: service.LeagueModels, name: str) -> ModelInfo:
+    meta = lm.meta[name]
+    return ModelInfo(
+        name=name,
+        version=meta.get('version'),
+        rps=meta['rps'],
+        baseline_rps=meta['baseline_rps'],
+        market_rps=meta.get('market_rps'),
+    )
 
 
 def _predict(lm: service.LeagueModels, home: str, away: str,
              model: str | None) -> tuple[ModelInfo, Probabilities]:
     """The requested model's prediction, or by default the one with the best
     walk-forward RPS among those that have history for both teams."""
-    prediction = service.predict_match(lm, home, away)
-    chosen = model or service.best_outcome_model(lm, prediction)
-    if chosen is None or chosen not in prediction.probs or lm.meta[chosen] is None:
+    served = service.served_prediction(lm, home, away, model)
+    if served is None:
         detail = f'Model {model!r} is not available' if model else 'No model has feature history'
         raise HTTPException(422, f'{detail} for {home} vs {away} in {lm.league}')
-
-    meta = lm.meta[chosen]
-    p_home, p_draw, p_away = prediction.probs[chosen]
-    model_info = ModelInfo(
-        name=chosen,
-        version=meta.get('version'),
-        rps=meta['rps'],
-        baseline_rps=meta['baseline_rps'],
-        market_rps=meta.get('market_rps'),
-    )
-    return model_info, Probabilities(home=p_home, draw=p_draw, away=p_away)
+    name, probs = served
+    return _model_info(lm, name), _probabilities(probs)
