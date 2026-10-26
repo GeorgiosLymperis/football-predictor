@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlencode
 
 import altair as alt
 import matplotlib.pyplot as plt
@@ -7,12 +8,14 @@ import pandas as pd
 import streamlit as st
 from matplotlib.colors import LinearSegmentedColormap
 
+import yaml
+
 from match_predict.config import load_league_config
 from match_predict.features.data import DATA_DIR, load_league_matches
 from match_predict.fixtures import FixturesUnavailableError
 from match_predict.predict.poisson import team_ratings
 from match_predict.service import (
-    artifacts_stamp, best_goals_model, best_outcome_model, fixture_predictions, load_league,
+    MODELS_DIR, artifacts_stamp, best_goals_model, best_outcome_model, fixture_predictions, load_league,
     log_prediction_safe, predict_match,
 )
 from match_predict.simulation import UnratedTeamsError, remaining_fixtures, simulate_season, summarise
@@ -142,6 +145,15 @@ def season_table(league: str, data_stamp: float) -> pd.DataFrame:
     return league_table(load_league_matches(load_league_config(league)))
 
 
+def league_snapshot(league: str) -> str:
+    """One-line summary of the current season for the home-page league cards."""
+    table = season_table(league, _data_stamp(league))
+    if table.empty:
+        return 'Season not started yet'
+    leader = table.iloc[0]
+    return f'{leader["team"]} lead with {leader["points"]} pts · {table["played"].max()} games played'
+
+
 def _signed(n) -> str:
     if pd.isna(n):
         return '\u2013'
@@ -195,6 +207,8 @@ _FIXTURES_CSS = """
 .fixtures td { padding: 7px 6px; border-bottom: 1px solid #eeede9; white-space: nowrap; vertical-align: middle; }
 .fixtures .when { color: #52514e; font-size: 0.8rem; }
 .fixtures .match { font-weight: 600; color: #0b0b0b; }
+.fixtures a.match { text-decoration: none; }
+.fixtures a.match:hover { color: #2a78d6; text-decoration: underline; }
 .fixtures .bar { display: inline-flex; gap: 2px; width: 120px; height: 10px; vertical-align: middle; margin-right: 8px; }
 .fixtures .bar span:first-child { border-radius: 4px 0 0 4px; }
 .fixtures .bar span:last-child { border-radius: 0 4px 4px 0; }
@@ -231,14 +245,15 @@ def fixtures_html(rows: list[dict]) -> str:
             model = f'<span class="bar">{segments}</span><span class="nums">{_pct_triplet(f["probs"])}</span>'
         market = (f'<span class="muted">{_pct_triplet(f["market_probs"])}</span>'
                   if f['market_probs'] else '<span class="muted">\u2013</span>')
-        body.append(f'<tr><td><div class="match">{f["home"]} \u2013 {f["away"]}</div>'
+        link = '?' + urlencode({'home': f['home'], 'away': f['away']})
+        body.append(f'<tr><td><a class="match" href="{link}" title="Open in Predict a match">'
+                    f'{f["home"]} \u2013 {f["away"]}</a>'
                     f'<div class="when">{when}</div></td><td>{model}</td><td>{market}</td></tr>')
     return (f'{_FIXTURES_CSS}<div class="fixtures-legend">{legend}</div><div class="fixtures-wrap">'
             f'<table class="fixtures"><thead>{head}</thead><tbody>{"".join(body)}</tbody></table></div>')
 
 
 def render_fixtures(lm, display_name: str) -> None:
-    st.subheader('Upcoming fixtures')
     try:
         rows = fixture_predictions(lm)
     except FixturesUnavailableError:
@@ -253,6 +268,7 @@ def render_fixtures(lm, display_name: str) -> None:
     served = {f['model'] for f in rows if f['model']}
     titles = ', '.join(OUTCOME_MODEL_INFO[m][0] for m in sorted(served)) or "the league's best model"
     st.caption(
+        'Click a match to open it in **Predict a match**. '
         f'Model probabilities from {titles}, the model with the best '
         'walk-forward RPS for this league. Market probabilities are the average bookmaker odds with the '
         'bookmaker margin removed. Kick-off times are UK time, as listed by football-data.co.uk.'
@@ -525,16 +541,75 @@ OUTCOME_MODEL_INFO = {
 }
 
 
+MODEL_TITLES = {
+    'poisson': 'Bayesian Poisson (Dixon-Coles)',
+    'negbinom': 'Negative Binomial',
+    'elo_xgb': 'XGBoost',
+    'logistic': 'Logistic Regression',
+    'mlp': 'MLP (Neural Network)',
+    'ensemble': 'Ensemble',
+}
+
+
+@st.cache_data
+def league_metadata(league: str, model_stamp: float) -> dict[str, dict | None]:
+    """Champion metadata only (RPS, baseline, market), without loading the
+    models themselves; `model_stamp` invalidates the cache after a retrain."""
+    paths = {m: MODELS_DIR / league / m / 'metadata.yaml' for m in MODEL_TITLES}
+    return {m: yaml.safe_load(path.read_text()) if path.exists() else None for m, path in paths.items()}
+
+
+LEAGUE_TABS = ('League table', 'Fixtures', 'Season outlook', 'Predict a match')
+
+
+def _apply_fixture_link(league: str, season_teams: list[str]) -> None:
+    """A fixture link (`?home=...&away=...`) preselects that matchup and opens
+    the Predict tab, then clears the query string so a later rerun doesn't
+    override the user's own picks."""
+    home, away = st.query_params.get('home'), st.query_params.get('away')
+    if home in season_teams and away in season_teams and home != away:
+        st.session_state[f'{league}_home'] = home
+        st.session_state[f'{league}_away'] = away
+        st.session_state[f'{league}_tab'] = LEAGUE_TABS[-1]
+    if 'home' in st.query_params or 'away' in st.query_params:
+        st.query_params.clear()
+
+
 def render_league_page(league: str) -> None:
     display_name = LEAGUE_DISPLAY_NAMES[league]
     st.title(f'{display_name} match predictor')
 
     lm = load_league(league)
-    meta = lm.meta
-    elo_state = lm.elo_state
+    table = with_elo(season_table(league, _data_stamp(league)), lm.elo_state)
+    season_teams = sorted(table['team'])
 
-    st.subheader('League table')
-    table = with_elo(season_table(league, _data_stamp(league)), elo_state)
+    _apply_fixture_link(league, season_teams)
+    # Widgets in a hidden tab aren't rendered, and Streamlit drops their state;
+    # re-assigning keeps the matchup picks while the user browses other tabs.
+    for key in (f'{league}_home', f'{league}_away', f'{league}_highlight'):
+        if key in st.session_state:
+            st.session_state[key] = st.session_state[key]
+
+    # on_change='rerun' makes `.open` reflect the selected tab, so only that
+    # tab's content is computed (the season simulation is the expensive one).
+    table_tab, fixtures_tab, outlook_tab, predict_tab = st.tabs(
+        LEAGUE_TABS, key=f'{league}_tab', on_change='rerun')
+    if table_tab.open:
+        with table_tab:
+            _render_table_tab(lm, table)
+    if fixtures_tab.open:
+        with fixtures_tab:
+            render_fixtures(lm, display_name)
+    if outlook_tab.open:
+        with outlook_tab:
+            render_season_simulation(league)
+            render_attack_defence(lm, list(table['team']))
+    if predict_tab.open:
+        with predict_tab:
+            _render_predict_tab(lm, season_teams)
+
+
+def _render_table_tab(lm, table: pd.DataFrame) -> None:
     st.html(league_table_html(table))
     st.caption(
         'Computed from this season\'s results; ties are broken by goal difference, then goals scored, '
@@ -543,32 +618,12 @@ def render_league_page(league: str) -> None:
         f'**Trend** (momentum): Elo trend over the last 10 matches in points per match; '
         f'\u25B2 above +{MOMENTUM_THRESHOLD}, \u25BC below \u2212{MOMENTUM_THRESHOLD}, \u25BA in between.'
     )
-
-    render_fixtures(lm, display_name)
-
-    render_attack_defence(lm, list(table['team']))
-
-    render_season_simulation(league)
-
     st.subheader('Elo progress — top 5 teams')
-    st.pyplot(elo_top5_progress_chart(elo_state))
+    st.pyplot(elo_top5_progress_chart(lm.elo_state))
 
-    st.divider()
-    st.subheader('Model performance')
-    st.dataframe(model_rps_table([
-        ('Bayesian Poisson (Dixon-Coles)', meta['poisson']),
-        ('Negative Binomial', meta['negbinom']),
-        ('XGBoost', meta['elo_xgb']),
-        ('Logistic Regression', meta['logistic']),
-        ('MLP (Neural Network)', meta['mlp']),
-        ('Ensemble', meta['ensemble']),
-    ]), hide_index=True)
-    st.caption('Walk-forward RPS on held-out seasons. Lower is better. The sections below '
-               'show only the best-performing model in each family.')
 
-    st.divider()
-    st.subheader('Pick a matchup')
-    season_teams = sorted(table['team'])
+def _render_predict_tab(lm, season_teams: list[str]) -> None:
+    league, meta = lm.league, lm.meta
     default_home_team, default_away_team = DEFAULT_MATCHUPS.get(league, (season_teams[0], season_teams[1]))
     default_home = season_teams.index(default_home_team) if default_home_team in season_teams else 0
     default_away = season_teams.index(default_away_team) if default_away_team in season_teams else 1
@@ -579,10 +634,10 @@ def render_league_page(league: str) -> None:
 
     if home == away:
         st.warning('Pick two different teams.')
-        st.stop()
+        return
 
     st.markdown(f'Elo progress — {home} vs {away}')
-    st.pyplot(elo_matchup_progress_chart(elo_state, [home, away]))
+    st.pyplot(elo_matchup_progress_chart(lm.elo_state, [home, away]))
 
     prediction = predict_match(lm, home, away)
     for model_name, probs in prediction.probs.items():
@@ -614,3 +669,9 @@ def render_league_page(league: str) -> None:
             'Logistic Regression, MLP, and the Ensemble for this league.'
         )
         st.caption(metadata_caption(meta[best], caption_extra))
+
+    st.divider()
+    st.subheader('Model performance')
+    st.dataframe(model_rps_table([(MODEL_TITLES[m], meta[m]) for m in MODEL_TITLES]), hide_index=True)
+    st.caption('Walk-forward RPS on held-out seasons. Lower is better. The sections above '
+               'show only the best-performing model in each family. See **About** for how this is measured.')
