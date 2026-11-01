@@ -1,9 +1,9 @@
 model_name: logistic_greek
 version: '1'
-run_id: 32e7d2f84d0741eda8c2325137d32ad7
-rps: 0.20092764554540257
+run_id: bab350b95db04902b19fede5fe69fa57
+rps: 0.20092764523804318
 baseline_rps: 0.23637938033460965
 market_rps: 0.19394748799758
 market_n_matches: 469
-promoted_at: '2026-10-03T13:59:18.461829+00:00'
-git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00
+promoted_at: '2026-11-01T12:12:19.444201+00:00'
+git_sha: 8e6a4c41ed241a4c5669d9f11061eee2fc586725

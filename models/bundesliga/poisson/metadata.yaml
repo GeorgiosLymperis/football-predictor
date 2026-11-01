@@ -1,9 +1,9 @@
 model_name: poisson_bundesliga
 version: '1'
-run_id: 3eaf466ae38f4666a5f81a3ff619a49f
-rps: 0.20729561333715327
+run_id: 2e5c3b2acf39415ca3e474cf6d051a6e
+rps: 0.2073418489442714
 baseline_rps: 0.23468275939036956
 market_rps: 0.19634765566157153
 market_n_matches: 612
-promoted_at: '2026-10-03T14:24:09.671876+00:00'
-git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00
+promoted_at: '2026-11-01T12:26:35.215812+00:00'
+git_sha: 8e6a4c41ed241a4c5669d9f11061eee2fc586725

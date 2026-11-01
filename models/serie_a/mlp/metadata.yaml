@@ -1,9 +1,9 @@
 model_name: mlp_serie_a
 version: '1'
-run_id: a80fc69613d346d1bfa437b1dc4e817e
+run_id: 2f8561e932524d0faa8a6c39eff84766
 rps: 0.2017777676860689
 baseline_rps: 0.23190511537241096
 market_rps: 0.19010013143351226
 market_n_matches: 760
-promoted_at: '2026-10-03T14:40:20.912985+00:00'
-git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00
+promoted_at: '2026-11-01T12:35:44.178093+00:00'
+git_sha: 8e6a4c41ed241a4c5669d9f11061eee2fc586725

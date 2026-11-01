@@ -1,9 +1,9 @@
 model_name: xgb_bundesliga
 version: '1'
-run_id: 0868162e4eee4e9aa1d2bfc0c8280c56
+run_id: befb3267e5f946d2978711c18b3bbb8d
 rps: 0.2050148086310348
 baseline_rps: 0.23461119826215615
 market_rps: 0.19634765566157153
 market_n_matches: 612
-promoted_at: '2026-10-03T14:26:24.771387+00:00'
-git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00
+promoted_at: '2026-11-01T12:28:07.885743+00:00'
+git_sha: 8e6a4c41ed241a4c5669d9f11061eee2fc586725

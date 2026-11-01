@@ -4,8 +4,8 @@ constituents:
 - poisson_bundesliga
 - elo_xgb_bundesliga
 - logistic_bundesliga
-rps: 0.20165922800233757
+rps: 0.2016747711323145
 baseline_rps: 0.23468275939036956
 market_rps: 0.19634765566157153
 market_n_matches: 612
-promoted_at: '2026-10-03T14:30:49.916524+00:00'
+promoted_at: '2026-11-01T12:30:31.948634+00:00'

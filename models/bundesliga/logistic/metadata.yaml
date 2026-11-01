@@ -1,9 +1,9 @@
 model_name: logistic_bundesliga
 version: '1'
-run_id: 3e0a0f8de0794534a0273fca57492585
-rps: 0.2017625574973985
+run_id: 0af0661b2e914a74aaf4ea3142aa1604
+rps: 0.2017623251426755
 baseline_rps: 0.23461119826215615
 market_rps: 0.19634765566157153
 market_n_matches: 612
-promoted_at: '2026-10-03T14:27:50.048602+00:00'
-git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00
+promoted_at: '2026-11-01T12:28:48.616648+00:00'
+git_sha: 8e6a4c41ed241a4c5669d9f11061eee2fc586725

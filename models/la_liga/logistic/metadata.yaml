@@ -1,9 +1,9 @@
 model_name: logistic_la_liga
 version: '1'
-run_id: 35fadbb5736543908e4b385f4c82f0ab
-rps: 0.19782824866397386
+run_id: 9e74bd7aa7c04624b1d659f7526a198c
+rps: 0.1978282485700556
 baseline_rps: 0.22592785086597522
 market_rps: 0.19279852326110275
 market_n_matches: 760
-promoted_at: '2026-10-03T14:18:31.672361+00:00'
-git_sha: 7861c9ed53fd7e6a0afb9ace37b60277bd7a2b00
+promoted_at: '2026-11-01T12:23:19.031306+00:00'
+git_sha: 8e6a4c41ed241a4c5669d9f11061eee2fc586725
